@@ -1,0 +1,14 @@
+# Lab: labs/lab-14-authorization-policy.md — step 1
+# An AuthorizationPolicy with an empty spec (no `rules`) and no
+# `selector` denies ALL traffic to every workload in this namespace by
+# default — the standard "default-deny" starting point before adding
+# narrow, explicit allows. See docs/06-service-security-and-mtls.md
+# "Default-deny authorization".
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: namespace-default-deny
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec: {}

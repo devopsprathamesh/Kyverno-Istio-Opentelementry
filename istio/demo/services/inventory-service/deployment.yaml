@@ -1,0 +1,54 @@
+# inventory-service — single version (v1 only). Called by order-service.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: inventory-service
+  namespace: istio-demo
+  labels: {app.kubernetes.io/part-of: istio-learning-lab}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-service-v1
+  namespace: istio-demo
+  labels:
+    app: inventory-service
+    version: v1
+    app.kubernetes.io/name: inventory-service
+    app.kubernetes.io/part-of: istio-learning-lab
+    owner: platform-team
+    environment: lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: inventory-service, version: v1}
+  template:
+    metadata:
+      labels: {app: inventory-service, version: v1, app.kubernetes.io/part-of: istio-learning-lab}
+    spec:
+      serviceAccountName: inventory-service
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: whoami
+          image: "traefik/whoami:v1.11.0"
+          args: ["--port=80"]
+          env:
+            - {name: WHOAMI_NAME, value: "inventory-service-v1"}
+          ports:
+            - {containerPort: 80, name: http}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 32Mi}
+          readinessProbe:
+            httpGet: {path: /health, port: 80}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health, port: 80}
+            periodSeconds: 10

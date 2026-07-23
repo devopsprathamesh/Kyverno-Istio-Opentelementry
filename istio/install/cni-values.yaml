@@ -1,0 +1,35 @@
+# Istio `cni` chart values — one DaemonSet per node regardless of
+# profile, so no minimum/recommended split (unlike istiod/gateway).
+#
+# `chained: true` + `provider: "default"` is the documented Istio CNI
+# chaining mode required to run alongside another primary CNI (Cilium,
+# in this cluster) rather than replacing it — see
+# docs/04-istio-cni-and-cilium.md for the full explanation of chaining
+# and the separate, REQUIRED Cilium-side values
+# (cni.exclusive=false, socketLB.hostNamespaceOnly=true) this chart's
+# own values do NOT and CANNOT set (they live in Cilium's own Helm
+# release, which this module never modifies — see
+# scripts/lib/istio.sh's cilium_cni_chaining_ready check).
+#
+# cniBinDir/cniConfDir match the standard containerd/Ubuntu paths this
+# repository's base platform already uses
+# (../../auto-setup-default-kube-env) — confirm against
+# /etc/cni/net.d on a live node before relying on these if that
+# platform's containerd configuration ever changes.
+
+chained: true
+provider: "default"
+
+cniBinDir: /opt/cni/bin
+cniConfDir: /etc/cni/net.d
+
+excludeNamespaces:
+  - kube-system
+  - istio-system
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 256Mi

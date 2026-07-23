@@ -1,0 +1,103 @@
+# order-service — versioned v1/v2 (this lab's second multi-version
+# service). Called by frontend; calls inventory-service and
+# payment-service (see ../../../README.md's request-flow diagram).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: order-service
+  namespace: istio-demo
+  labels: {app.kubernetes.io/part-of: istio-learning-lab}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service-v1
+  namespace: istio-demo
+  labels:
+    app: order-service
+    version: v1
+    app.kubernetes.io/name: order-service
+    app.kubernetes.io/part-of: istio-learning-lab
+    owner: platform-team
+    environment: lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: order-service, version: v1}
+  template:
+    metadata:
+      labels: {app: order-service, version: v1, app.kubernetes.io/part-of: istio-learning-lab}
+    spec:
+      serviceAccountName: order-service
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: whoami
+          image: "traefik/whoami:v1.11.0"
+          args: ["--port=80"]
+          env:
+            - {name: WHOAMI_NAME, value: "order-service-v1"}
+          ports:
+            - {containerPort: 80, name: http}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 32Mi}
+          readinessProbe:
+            httpGet: {path: /health, port: 80}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health, port: 80}
+            periodSeconds: 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service-v2
+  namespace: istio-demo
+  labels:
+    app: order-service
+    version: v2
+    app.kubernetes.io/name: order-service
+    app.kubernetes.io/part-of: istio-learning-lab
+    owner: platform-team
+    environment: lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: order-service, version: v2}
+  template:
+    metadata:
+      labels: {app: order-service, version: v2, app.kubernetes.io/part-of: istio-learning-lab}
+    spec:
+      serviceAccountName: order-service
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: whoami
+          image: "traefik/whoami:v1.11.0"
+          args: ["--port=80"]
+          env:
+            - {name: WHOAMI_NAME, value: "order-service-v2"}
+          ports:
+            - {containerPort: 80, name: http}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 32Mi}
+          readinessProbe:
+            httpGet: {path: /health, port: 80}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health, port: 80}
+            periodSeconds: 10

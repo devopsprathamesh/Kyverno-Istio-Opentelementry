@@ -1,0 +1,29 @@
+# Istio Gateway resource (networking.istio.io/v1) bound to the
+# istio-ingress gateway Deployment's Service — see
+# ../../docs/07-gateways-and-ingress.md for how this differs from the
+# Kubernetes Gateway API's own Gateway kind, and why this lab uses
+# Istio's native API for its own demo ingress.
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: demo-gateway
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  # Must match the live istio-ingress gateway pod labels — the gateway
+  # chart labels pods `app: <helm release name>` by default, and this
+  # lab's install.sh installs it as release "istio-ingress"
+  # (helm upgrade --install istio-ingress ...). Re-confirm with
+  # `kubectl get pods -n istio-ingress --show-labels` at install time
+  # if this selector doesn't bind (see docs/14-troubleshooting.md
+  # "Gateway host mismatch").
+  selector:
+    app: istio-ingress
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "frontend.istio-lab.local"

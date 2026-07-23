@@ -1,0 +1,21 @@
+# Lab: labs/lab-10-fault-injection.md — abort fault, 30% of requests,
+# HTTP 503. See docs/09-resilience-patterns.md "Difference between
+# testing failure handling and causing real outages" — this fault is
+# scoped to payment-service in istio-demo only, applied deliberately
+# and temporarily, the opposite of an uncontrolled production incident.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: payment-service-fault-abort
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  hosts: ["payment-service"]
+  http:
+    - fault:
+        abort:
+          percentage: {value: 30.0}
+          httpStatus: 503
+      route:
+        - destination: {host: payment-service}

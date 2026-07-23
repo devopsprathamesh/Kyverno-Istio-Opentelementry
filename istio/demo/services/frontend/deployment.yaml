@@ -1,0 +1,106 @@
+# frontend — versioned v1/v2 (one of this lab's two multi-version
+# services, alongside order-service). Backed by traefik/whoami (see
+# root docs/DECISIONS.md's Phase 4 demo-app-design note): a tiny,
+# pinned, non-root-capable echo server that reports its own identity
+# and echoes request headers — exactly what traffic-management/canary
+# labs need to observe, without a custom build pipeline.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: frontend
+  namespace: istio-demo
+  labels: {app.kubernetes.io/part-of: istio-learning-lab}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-v1
+  namespace: istio-demo
+  labels:
+    app: frontend
+    version: v1
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: istio-learning-lab
+    owner: platform-team
+    environment: lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: frontend, version: v1}
+  template:
+    metadata:
+      labels: {app: frontend, version: v1, app.kubernetes.io/part-of: istio-learning-lab}
+    spec:
+      serviceAccountName: frontend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: whoami
+          image: "traefik/whoami:v1.11.0"
+          args: ["--port=80"]
+          env:
+            - {name: WHOAMI_NAME, value: "frontend-v1"}
+          ports:
+            - {containerPort: 80, name: http}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 32Mi}
+          readinessProbe:
+            httpGet: {path: /health, port: 80}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health, port: 80}
+            periodSeconds: 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-v2
+  namespace: istio-demo
+  labels:
+    app: frontend
+    version: v2
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: istio-learning-lab
+    owner: platform-team
+    environment: lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: frontend, version: v2}
+  template:
+    metadata:
+      labels: {app: frontend, version: v2, app.kubernetes.io/part-of: istio-learning-lab}
+    spec:
+      serviceAccountName: frontend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: whoami
+          image: "traefik/whoami:v1.11.0"
+          args: ["--port=80"]
+          env:
+            - {name: WHOAMI_NAME, value: "frontend-v2"}
+          ports:
+            - {containerPort: 80, name: http}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 32Mi}
+          readinessProbe:
+            httpGet: {path: /health, port: 80}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health, port: 80}
+            periodSeconds: 10

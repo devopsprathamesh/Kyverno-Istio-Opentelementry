@@ -1,0 +1,17 @@
+# Lab: labs/lab-07-canary-traffic-shifting.md — stage 1 of 3.
+# Requires destinationrule-frontend.yaml applied first (defines the v1/v2 subsets).
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: frontend-canary
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  hosts: ["frontend"]
+  http:
+    - route:
+        - destination: {host: frontend, subset: v1}
+          weight: 90
+        - destination: {host: frontend, subset: v2}
+          weight: 10

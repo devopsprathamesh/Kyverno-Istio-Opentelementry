@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: istio-system
+  labels:
+    app.kubernetes.io/name: istio-system
+    app.kubernetes.io/part-of: istio-learning-lab
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: istio-ingress
+  labels:
+    app.kubernetes.io/name: istio-ingress
+    app.kubernetes.io/part-of: istio-learning-lab
+    # Sidecar-injected too: the ingress gateway itself is a Deployment
+    # whose pod template requests injection via podAnnotations in the
+    # gateway chart (sidecar.istio.io/inject: "true") — no namespace-
+    # level revision label is strictly required for the gateway chart,
+    # but is harmless and kept for consistency with istio-demo.

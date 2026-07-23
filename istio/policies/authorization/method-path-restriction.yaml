@@ -1,0 +1,26 @@
+# Lab: labs/lab-14-authorization-policy.md — advanced step
+# Beyond principal matching: order-service (already allowed to call
+# payment-service by allow-order-to-downstream.yaml) may only call
+# payment-service's GET/POST methods under /status or /health — not
+# arbitrary methods/paths. Demonstrates narrowing an already-allowed
+# caller further by method+path, the finer-grained end of
+# AuthorizationPolicy's expressiveness.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: payment-service-method-path-restriction
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  selector:
+    matchLabels: {app: payment-service}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/istio-demo/sa/order-service"]
+      to:
+        - operation:
+            methods: ["GET", "POST"]
+            paths: ["/status", "/health"]

@@ -7,7 +7,7 @@ This document is the source of truth for what has actually been built and valida
 | Phase 1 — Repository architecture and governance | Complete | Documentation existence check, placeholder-token scan, secret-file scan, nested-`.git` scan, `git diff --check`, relative markdown-link resolution check, manual Mermaid syntax review | Pass (see below) | Mermaid diagrams were not tool-validated — no `node`/`npx`/Mermaid CLI was available in this environment; only manual syntax review was performed |
 | Phase 2 — Base VirtualBox and Vagrant Kubernetes environment | **Partial** — automation built and statically validated; live-cluster runtime validation not performed | File existence, `bash -n` + ShellCheck (if available), `ruby -c`/`vagrant validate`, YAML template structural checks, `make help` review, markdown-link check, git-safety checks; host tool presence (`VBoxManage`/`vagrant --version`) confirmed directly | Static suite: pass (see below). Runtime (VM boot, kubeadm, Cilium, storage, network tests): **not run**, by explicit user choice this session | No live cluster exists yet. See Phase 2 detail below for the exact commands to complete runtime validation, and known/deferred risks. |
 | Phase 3 — Independent Kyverno lab | **Partial** — automation and documentation built and statically validated; live-cluster runtime validation not performed | File existence, `bash -n` + ShellCheck, YAML structural validation, `helm lint` (best-effort, network-dependent), Kyverno CLI `kyverno test` offline policy tests, policy-quality checks (API versions, duplicate names, descriptions, wildcards, image-tag hygiene), markdown-link check, `make help`, git-safety checks | Static suite: see Phase 3 detail below for exact pass/fail counts. Runtime (install, functional probes, all `tests/*-policy-tests.sh`): **not run** — no live cluster existed during this phase | No live cluster exists yet. See Phase 3 detail below for exact commands to complete runtime validation. |
-| Phase 4 — Independent Istio lab | Not started | — | — | — |
+| Phase 4 — Independent Istio lab | **Partial** — automation and documentation built and statically validated; live-cluster runtime validation not performed | File existence, `bash -n` + ShellCheck, YAML structural validation, `istioctl analyze --use-kube=false` (real tool execution, checksum-verified `istioctl` 1.30.3 installed this phase), manifest-quality checks (API versions, duplicate names, image-tag hygiene), markdown-link check, `make help`, git-safety checks | Static suite: **pass** (8/8 mandatory checks, 1 non-fatal WARN — see Phase 4 detail below). Runtime (`make verify-cluster`, `make install`, `make validate-installation`, `make deploy-demo`, `make test-runtime`, all 10 `tests/*-test.sh` runtime scripts): **not run** — no live cluster existed during this phase | No live cluster exists yet. See Phase 4 detail below for exact commands to complete runtime validation. |
 | Phase 5 — Independent observability lab | Not started | — | — | — |
 | Phase 6 — All-tools integrated lab | Not started | — | — | — |
 | Phase 7 — Repository-wide validation and documentation review | Not started | — | — | — |
@@ -301,4 +301,72 @@ make test-runtime
 
 ```text
 Phase 4: Independent Istio hands-on lab
+```
+
+## Phase 4 detail
+
+**Repository state at start:** working tree clean; `istio/` contained only an empty placeholder `README.md`. No live cluster existed (`VBoxManage list vms`/`vagrant global-status` empty, no `.generated/kubeconfig`) — matching this phase's own "no live cluster available" execution branch, the same situation as Phase 3.
+
+**Files created:** `istio/config/{versions,namespaces,lab-settings,endpoints}.env`; `istio/scripts/lib/{common,logging,kubernetes,istio}.sh` + 11 orchestration scripts; `istio/install/` (namespace, base/istiod/cni/gateway Helm values × minimum/recommended profiles, Gateway API reference); `istio/demo/` (4-service demo app, gateway, traffic/resilience/egress/security manifests); `istio/policies/` (peerauthentication, authorization, requestauthentication, sidecar); `istio/Makefile`; `istio/tests/` (`static-validation.sh`, `installation-test.sh`, 9 runtime test scripts, `expected-results.md`); `istio/docs/` (16 concept documents, 16 Mermaid diagrams); `istio/labs/` (21 lab documents, `lab-00`–`lab-20`); `istio/README.md`, `istio/.env.example`, `istio/examples/` (3 files).
+
+**Files modified:** `PROJECT-IMPLEMENTATION-PLAN.md` (Phase 4 checkboxes), `docs/VERSIONS.md` (Phase 4 addendum), `docs/DEPENDENCIES.md` (§8 Cilium/Istio compatibility reconciled with the confirmed CNI-chaining values gap), `docs/DECISIONS.md` (+ADR-019 through ADR-024), root `README.md` (status line + module table row).
+
+### Static validation
+
+`istioctl` 1.30.3 was downloaded (explicit permission requested and granted), checksum-verified against the release's published `.sha256`, installed to `~/.local/bin` (user-local, no sudo) — the same disclosed-download pattern used for the Kyverno CLI in Phase 3.
+
+| Check | Result |
+| --- | --- |
+| `bash -n`, 27 scripts | Pass — 27/27 |
+| ShellCheck (severity: warning+, SC1091 excluded — same documented rationale as Phase 2/3), 27 scripts | Pass — 27/27, after fixing one real finding (below) |
+| YAML structural validation, 38 files | Pass — 38/38, plus the `.tpl` JWT template's post-placeholder-substitution structure |
+| `helm lint` | **Skipped, documented** — `helm` is not installed on this host; only the `istioctl` download was disclosed/approved this session |
+| `istioctl analyze --use-kube=false` against every install/demo/policy manifest | **Pass — reports no errors** (real tool execution, not a schema-only check) |
+| Manifest quality checks (API versions, duplicate names, `:latest` tags) | Pass, 1 non-fatal `WARN` — duplicate resource `name:` values across files (`default`, `frontend`, `order-service`, etc.) are expected/intentional (Service+Deployment name reuse across `kind`, and `permissive.yaml`/`strict.yaml` both intentionally naming their `PeerAuthentication` `default`, since only one is ever applied at a time) |
+| Deprecated Istio API version detection | Pass — all manifests use current `networking.istio.io/v1`/`security.istio.io/v1`, no `v1alpha3`/`v1beta1` |
+| Markdown link check (`istio/` only) | Pass — 48/48 relative links resolve across 42 files |
+| `make help` | Pass — lists 26 targets |
+| Secret-like file scan | Pass — none found |
+| Nested `.git` scan | Pass — none found |
+| Placeholder token scan | Pass — none found |
+| `git diff --check` | Pass — clean, exit 0 |
+| `kyverno/`, `opentelemetry-prometheus-grafana-jaeger-loki/`, `all-tools-integrated-lab/`, `auto-setup-default-kube-env/` unmodified | Pass — `git status --short` shows no changes under any of these paths |
+
+**Two real bugs found and fixed via actually running the tools, not just review — the same category of lesson as Phase 2's SIGPIPE-under-pipefail discovery and Phase 3's `kyverno-test.yaml` schema mistakes:**
+
+1. **ShellCheck SC2034** in `tests/circuit-breaking-test.sh`: `for i in $(seq 1 30); do` — the loop counter `i` was never referenced in the loop body (only used to repeat a fixed number of times). Fixed by renaming to `for _ in $(seq 1 30); do`.
+2. **A SIGPIPE-under-pipefail bug in `tests/static-validation.sh` itself**: `grep -E '^  name:' "${f}" | awk '{print $2}' >>"${NAME_CHECK_FILE}"` inside a loop, unguarded, under `set -euo pipefail`. Any manifest file where that exact two-space-indented pattern found zero matches caused `grep` to exit 1, which — under `pipefail` and with no `if`/`||` guarding it — immediately terminated the entire validation script mid-run, silently, right after printing the next section's header. Found only because the full suite was actually executed twice (once before the fix, reproducing the silent stop, once after). Fixed by appending `|| true`, since zero matches is an expected, non-error case for this check.
+
+### Runtime validation
+
+**Not performed — no live cluster existed at any point during this phase**, matching this phase's own "no live cluster available" execution policy. Not run: `make verify-cluster`, `make install`, `make validate-installation`, `make deploy-demo`, `make test-runtime`, and all 10 `tests/*-test.sh` runtime scripts (including `cilium-compatibility-test.sh`, which specifically needs a live cluster to confirm the Cilium CNI-chaining Helm-values gap documented in `docs/DEPENDENCIES.md` §8 and `istio/docs/04-istio-cni-and-cilium.md`).
+
+**To complete runtime validation:**
+
+```bash
+cd auto-setup-default-kube-env
+make prerequisites && make setup LAB_PROFILE=recommended && make validate
+export KUBECONFIG="$(pwd)/.generated/kubeconfig"
+
+cd ../istio
+make prerequisites
+make verify-cluster   # heed the Cilium CNI-chaining WARNING if one appears
+# If warned: run the printed `helm upgrade cilium ... --reuse-values` command manually first.
+make install LAB_PROFILE=recommended
+make validate-installation
+make deploy-demo
+make test-runtime
+```
+
+### Items not testable in this phase
+
+- Everything under "Runtime validation" above.
+- `helm lint` against the actual pinned charts (documented skip, not a silent omission — see the static-validation table above).
+- The Cilium CNI-chaining compatibility gap itself (`docs/DEPENDENCIES.md` §8) can be *documented and detected* statically (the exact Helm values are known from upstream Cilium documentation), but whether this cluster's actual Cilium release needs the remediation can only be confirmed by `make verify-cluster`/`make install` against a live cluster.
+- Statistical/timing-sensitive runtime tests (canary-split tolerance, circuit-breaker overflow, fault-injection rate) by nature require live traffic and cannot be meaningfully approximated statically.
+
+### Next phase
+
+```text
+Phase 5: Independent observability lab (OpenTelemetry, Prometheus, Grafana, Jaeger, Loki)
 ```

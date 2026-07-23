@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+    environment: lab
+    owner: platform-team
+    # Enables automatic sidecar injection for every pod created here —
+    # matches the revision this lab installs Istiod under (see
+    # ../config/lab-settings.env ISTIO_REVISION). See
+    # ../docs/03-envoy-and-sidecar-internals.md "Sidecar injection".
+    istio.io/rev: stable-1-30
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: istio-external
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+    environment: lab
+    owner: platform-team
+    # Deliberately NOT labeled for sidecar injection — this namespace
+    # simulates a service OUTSIDE the mesh boundary for
+    # labs/lab-16-egress-control.md, so its workload must NOT have an
+    # Envoy sidecar (that would defeat the point of the lab).

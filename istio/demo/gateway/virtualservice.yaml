@@ -1,0 +1,21 @@
+# Base VirtualService binding the Gateway to the frontend Service.
+# Traffic-shifting/header-routing VirtualServices in ../traffic/
+# supersede this one's routing rules during those specific labs — this
+# file is the "default state" to return to between labs.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: frontend-ingress
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  hosts:
+    - "frontend.istio-lab.local"
+  gateways:
+    - demo-gateway
+  http:
+    - route:
+        - destination:
+            host: frontend
+            port: {number: 80}

@@ -1,0 +1,34 @@
+# Lab: labs/lab-17-sidecar-resource.md, lab-16-egress-control.md
+#
+# Restricts every sidecar in istio-demo to only ever build xDS config
+# for: same-namespace services, the mesh's control-plane/istio-system
+# services (required — removing this breaks the mesh itself), and the
+# one explicitly ServiceEntry-registered external host from
+# ../../demo/egress/serviceentry.yaml. Every other in-cluster or
+# external host becomes unreachable from istio-demo workloads, even if
+# it's a perfectly normal Kubernetes Service elsewhere in the cluster
+# — this is the actual mechanism that makes lab 16's "without
+# registration, unreachable" demonstration concrete (see
+# ../../demo/egress/serviceentry.yaml's own comment on this).
+#
+# Named "default" — a namespace-scoped Sidecar named "default" with no
+# workloadSelector applies to every workload in the namespace.
+apiVersion: networking.istio.io/v1
+kind: Sidecar
+metadata:
+  name: default
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  egress:
+    - hosts:
+        - "istio-demo/*"
+        - "istio-system/*"
+        # CoreDNS lives in kube-system, not istio-system — required for
+        # basic DNS resolution to keep working at all; omitting this
+        # is a common, confusing self-inflicted "everything is broken"
+        # mistake when first using the Sidecar resource (see
+        # docs/14-troubleshooting.md "DNS failure").
+        - "kube-system/*"
+        - "istio-external/simulated-external-api.istio-external.svc.cluster.local"

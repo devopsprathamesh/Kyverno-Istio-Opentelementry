@@ -1,0 +1,16 @@
+# Lab: labs/lab-13-strict-mtls.md — step 1
+# PERMISSIVE (the mesh-wide default without any PeerAuthentication at
+# all, made explicit here): sidecars accept BOTH mTLS and plaintext,
+# letting traffic from a not-yet-injected workload or a health-checking
+# system still succeed during migration. See
+# docs/06-service-security-and-mtls.md "Permissive vs. strict mTLS".
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  mtls:
+    mode: PERMISSIVE

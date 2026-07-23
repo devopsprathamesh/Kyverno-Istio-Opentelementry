@@ -311,3 +311,99 @@ Each ADR follows: Status, Context, Decision, Alternatives considered, Consequenc
 **Risks:** A learner using this lab after `ClusterPolicy` removal would need to translate its policies to the CEL-based equivalents — mitigated by the explicit, present-tense documentation of the migration direction throughout, so the eventual transition is not a surprise.
 
 **Validation requirements:** Revisit this ADR's decision explicitly (not silently) once Kyverno v1.20 (or its actual removal timeline) is closer, per root `docs/REPOSITORY-GOVERNANCE.md`'s documentation-currency expectations.
+
+## ADR-019: Istio sidecar mode, actually implemented (confirms and extends ADR-005)
+
+**Status:** Accepted
+
+**Context:** ADR-005 (Phase 1) committed this repository to building the Istio lab in sidecar mode first, ambient mode documented only as a later addition — a decision made before any Istio implementation existed. Phase 4 is where that commitment is actually carried out.
+
+**Decision:** `istio/` implements sidecar mode exclusively — every workload gets a per-pod Envoy proxy via webhook-based injection. Ambient mode is documented conceptually (`istio/docs/16-future-ambient-mode.md`, including an architecture-comparison diagram) but nothing under `istio/` installs, configures, or exercises it.
+
+**Alternatives considered:** Revisiting ADR-005 now that upstream Istio presents ambient mode as equally production-ready — rejected: ADR-005's pedagogical-sequencing reasoning (sidecar's per-pod proxy model maps onto concepts a Kubernetes-experienced learner already has) still holds, and this phase's own scope explicitly prohibited installing anything beyond sidecar mode.
+
+**Consequences:** This phase's CNI-interception model (Istio CNI plugin, chained with Cilium) is the one that gets exercised throughout `istio/labs/`; an ambient-mode lab would need its own, separately-validated Cilium-interaction story (`istio/docs/16-future-ambient-mode.md`'s "what would have to change" section).
+
+**Risks:** None specific to sidecar mode's maturity — same risk framing as ADR-005: scope, not stability.
+
+**Validation requirements:** Sidecar injection, mTLS, and AuthorizationPolicy enforcement are all exercised in `istio/labs/lab-02`, `lab-13`, `lab-14` — statically validated this phase; live-cluster confirmation pending (see `VALIDATION-STATUS.md`).
+
+## ADR-020: Istio CNI plugin, chained with Cilium — and the Cilium Helm-values gap this exposed
+
+**Status:** Accepted
+
+**Context:** Running Istio's sidecar data plane on a cluster that already uses Cilium as its CNI requires deciding how the two CNI-level components coexist — replace one with the other, or chain them.
+
+**Decision:** `istio/` installs the **Istio CNI plugin, chained** with the existing Cilium install (`install/cni-values.yaml`, `chained: true`) — Cilium remains the primary CNI (IPAM, eBPF datapath, NetworkPolicy enforcement); the Istio CNI plugin only adds iptables redirection rules on top, once Cilium has already set up the pod's networking. Neither CNI replaces the other, and kube-proxy (ADR-003) is unaffected either way. This phase's research surfaced a real, previously-undiscovered gap: CNI chaining requires two specific Cilium Helm values (`cni.exclusive=false`, `socketLB.hostNamespaceOnly=true`) that this repository's Phase 2 Cilium install does not set. `istio/scripts/verify-cluster.sh` detects and warns; `istio/scripts/install.sh` hard-fails immediately before the `istio-cni` install step, printing the exact remediation command. Per this repository's module-isolation rules, `istio/` never runs that remediation itself.
+
+**Alternatives considered:** (1) Replacing Cilium's CNI role with a plain, non-eBPF CNI for the Istio lab specifically — rejected: would silently diverge this lab's networking substrate from the rest of the repository's base platform, undermining the "independent lab against the same shared base cluster" model every other module follows. (2) Having `istio/install.sh` auto-apply the Cilium remediation itself — rejected: violates this phase's explicit git-safety/module-isolation constraint that `istio/` must never modify Cilium or `auto-setup-default-kube-env/`.
+
+**Consequences:** A learner following this lab's own `labs/lab-00-prerequisites.md` and `labs/lab-01-installing-istio.md` in order will hit the chaining hard-fail (if the remediation hasn't been run) at a clear, well-documented point rather than a confusing runtime networking failure discovered later.
+
+**Risks:** If a learner runs `helm upgrade` against Cilium incorrectly (wrong values, no `--reuse-values`), they could unintentionally reset other Cilium settings (Hubble, kube-proxy coexistence) — mitigated by giving the exact, minimal, `--reuse-values`-based command rather than a general instruction.
+
+**Validation requirements:** `istio/tests/cilium-compatibility-test.sh` (runtime, pending) must confirm both DaemonSets healthy, the Cilium Helm values holding the chaining settings, and real sidecar-to-sidecar connectivity — not just that install completed without error.
+
+## ADR-021: kube-proxy retained through Phase 4 (confirms ADR-003, no change)
+
+**Status:** Accepted
+
+**Context:** ADR-003 (Phase 1) chose to retain kube-proxy for the default cluster profile rather than adopt Cilium's full kube-proxy-replacement mode. Phase 4 needed to decide whether introducing Istio changes that calculus.
+
+**Decision:** No change. `istio/` assumes and requires kube-proxy remains present exactly as ADR-003 established — `istio/scripts/verify-cluster.sh` checks for kube-proxy health as part of its cluster-identity verification, and nothing in `istio/` disables or reconfigures it.
+
+**Alternatives considered:** Revisiting kube-proxy replacement now that Istio is being layered in — rejected: Istio's sidecar/CNI-chaining model (ADR-020) has no dependency on kube-proxy-replacement mode either way, so there was no new information from this phase that would change ADR-003's original reasoning.
+
+**Consequences:** None beyond ADR-003's own — this ADR exists primarily to make the "no change" decision explicit and reviewable, rather than leaving Phase 4's silence on the topic ambiguous.
+
+**Risks:** None beyond what ADR-003 already documented.
+
+**Validation requirements:** `istio/scripts/verify-cluster.sh`'s kube-proxy health check must pass before any Istio install proceeds.
+
+## ADR-022: Independent Istio lab ships with no bundled observability tooling
+
+**Status:** Accepted
+
+**Context:** Istio produces rich telemetry (access logs, Envoy stats, distributed tracing headers) that is naturally interesting to visualize, and Kiali specifically is often bundled directly alongside Istio installs in tutorials and even some production reference architectures.
+
+**Decision:** `istio/` installs no observability tooling whatsoever — no Kiali, Prometheus, Grafana, Jaeger, or Loki. Every lab and validation step uses only `istioctl` (`proxy-status`, `proxy-config`, `analyze`) and raw `kubectl`/`curl` output.
+
+**Alternatives considered:** Bundling Kiali as a "just enough to see the mesh" convenience — rejected: this phase's own scope explicitly prohibits installing any observability component, and doing so would blur the boundary this repository's phased structure depends on (Phase 5 is where observability is built, independently, and Phase 6 is where it's connected to Istio) — see root `docs/REPOSITORY-GOVERNANCE.md`'s module-independence principle.
+
+**Consequences:** Every lab in this phase teaches direct `istioctl`/Envoy-admin-interface inspection as the primary diagnostic skill (`docs/10-configuration-analysis.md`) rather than a dashboard — arguably a stronger foundation, since dashboard-only familiarity breaks down exactly when the dashboard itself is unavailable or wrong.
+
+**Risks:** A learner who only works through this phase may not realize how much easier Kiali makes mesh visualization until Phase 5/6 — mitigated by `istio/README.md`'s explicit "Next module" section naming what Phase 5 adds.
+
+**Validation requirements:** `istio/tests/static-validation.sh` and manifest review confirm no observability Helm release, CRD, or manifest is present anywhere under `istio/`.
+
+## ADR-023: Local ingress access via port-forward, no public exposure by default
+
+**Status:** Accepted
+
+**Context:** This repository's base cluster (`auto-setup-default-kube-env/`) is a bare-metal Vagrant/VirtualBox homelab with no cloud load-balancer controller — a Kubernetes `Service` of `type: LoadBalancer` would sit `<pending>` indefinitely.
+
+**Decision:** `istio/install/ingress-gateway-values-{minimum,recommended}.yaml` both set `service.type: ClusterIP`. This lab's documented access pattern is `kubectl port-forward` to the ingress gateway Service (`istio/examples/application-access.md`, `istio/labs/lab-03-deploying-demo-app.md` step 5), never a host-bound port and never a public IP.
+
+**Alternatives considered:** `NodePort`, exposing a fixed host port on one of the Vagrant VMs — rejected: adds a persistent, always-listening exposure surface on a learning cluster for no real benefit over an on-demand port-forward, and diverges from how this repository's other modules (Kyverno) access in-cluster demo workloads.
+
+**Consequences:** Every lab that needs external access explicitly starts its own port-forward and tears it down afterward, rather than assuming a persistent externally-reachable endpoint exists.
+
+**Risks:** A learner moving this lab's manifests directly to a cloud cluster without changing `service.type` would get an unreachable ingress gateway — mitigated by `istio/docs/07-gateways-and-ingress.md`'s explicit "production considerations" note naming `LoadBalancer`/`NodePort`-behind-an-external-LB as the real-world alternative.
+
+**Validation requirements:** `istio/tests/ingress-test.sh` (runtime, pending) exercises the port-forward path specifically, not a hypothetical external IP.
+
+## ADR-024: Named revision install for future canary-upgrade readiness
+
+**Status:** Accepted
+
+**Context:** Istio supports installing under a named revision (enabling future canary control-plane upgrades, where two Istiod versions run side by side while namespaces migrate one at a time) or under the default, unnamed revision (simpler, but requires a much larger one-time migration before a canary upgrade path becomes available at all).
+
+**Decision:** `istio/config/lab-settings.env` sets `ISTIO_REVISION="stable-1-30"`, used throughout `istio/scripts/install.sh` and every namespace's `istio.io/rev` label. Only one revision is ever actually installed in this phase — this decision is about install *structure*, not about performing an upgrade.
+
+**Alternatives considered:** The simpler unnamed/default-revision install — rejected: it's simpler today at the cost of a much larger migration later if/when a canary control-plane upgrade is ever needed, and this repository's own governance conventions favor decisions that keep later phases' options open when the up-front cost is this small (one label value).
+
+**Consequences:** `istio/docs/13-upgrades-and-disaster-recovery.md` can describe a concrete, structurally-available canary-upgrade path rather than a purely hypothetical one; no functional difference is observable in this phase's own labs, since only one revision exists.
+
+**Risks:** None specific — the only cost is the mild indirection of every manifest referencing `stable-1-30` instead of an implicit default, which is itself documented.
+
+**Validation requirements:** `istio/labs/lab-01-installing-istio.md` step 4 confirms the installed revision matches `config/lab-settings.env` before any subsequent lab proceeds.

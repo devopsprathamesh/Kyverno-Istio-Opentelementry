@@ -1,0 +1,18 @@
+# Single Service selecting BOTH frontend-v1 and frontend-v2 pods (by
+# `app: frontend` only, not `version`) — DestinationRule subsets
+# (../../policies or ../traffic/) are what later split traffic between
+# them; the Service itself is version-agnostic, matching standard
+# Kubernetes Service + Istio subset conventions.
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  selector:
+    app: frontend
+  ports:
+    - {name: http, port: 80, targetPort: 80}

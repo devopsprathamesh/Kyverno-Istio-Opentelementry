@@ -1,0 +1,14 @@
+# Istio `base` chart values — installs CRDs and cluster-wide resources
+# only (no workloads). Minimal customization needed; kept explicit
+# rather than empty for clarity on what this chart's scope actually is.
+#
+# Key names confirmed directly against
+# manifests/charts/istio-control/istio-discovery/values.yaml at the
+# pinned Istio 1.30.3 tag (the base chart shares the same top-level
+# `global` block) — see docs/VERSIONS.md "Phase 4 addendum".
+global:
+  istioNamespace: istio-system
+
+# Do not install the default validating webhook config as part of base
+# only — istiod's own chart manages the live webhook once running;
+# base's default here is fine and left unset (chart default applies).

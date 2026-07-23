@@ -1,0 +1,54 @@
+# payment-service — single version (v1 only). Called by order-service.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: payment-service
+  namespace: istio-demo
+  labels: {app.kubernetes.io/part-of: istio-learning-lab}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service-v1
+  namespace: istio-demo
+  labels:
+    app: payment-service
+    version: v1
+    app.kubernetes.io/name: payment-service
+    app.kubernetes.io/part-of: istio-learning-lab
+    owner: platform-team
+    environment: lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: payment-service, version: v1}
+  template:
+    metadata:
+      labels: {app: payment-service, version: v1, app.kubernetes.io/part-of: istio-learning-lab}
+    spec:
+      serviceAccountName: payment-service
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: whoami
+          image: "traefik/whoami:v1.11.0"
+          args: ["--port=80"]
+          env:
+            - {name: WHOAMI_NAME, value: "payment-service-v1"}
+          ports:
+            - {containerPort: 80, name: http}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 32Mi}
+          readinessProbe:
+            httpGet: {path: /health, port: 80}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health, port: 80}
+            periodSeconds: 10

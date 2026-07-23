@@ -1,0 +1,16 @@
+# Lab: labs/lab-13-strict-mtls.md — step 3
+# STRICT: sidecars reject plaintext connections outright — only mTLS
+# traffic between workload identities is accepted. Named "default"
+# (same as permissive.yaml) since only ONE namespace-level
+# PeerAuthentication named "default" is meaningful per namespace —
+# applying this file replaces (not adds to) permissive.yaml.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  mtls:
+    mode: STRICT

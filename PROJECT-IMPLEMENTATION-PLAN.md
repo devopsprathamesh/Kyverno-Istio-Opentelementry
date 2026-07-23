@@ -108,13 +108,19 @@ This is the authoritative phase list for this repository. Each phase is built, v
 **Validation requirements:** Sidecar injection confirmed on the demo namespace; traffic-shifting/canary example demonstrably splits traffic per configured weights; mTLS STRICT mode validated; AuthorizationPolicy denial demonstrated; `make uninstall` leaves no residual CRDs/webhooks/namespace and disables injection.
 
 **Definition of done:**
-- [ ] Istio installed (sidecar mode) at the version pinned in `docs/VERSIONS.md`, using the Istio CNI plugin
-- [ ] Gateway/VirtualService/DestinationRule traffic-management examples working
-- [ ] mTLS, PeerAuthentication, AuthorizationPolicy examples working
-- [ ] ServiceEntry/egress control example working
-- [ ] `make install`, `make deploy-demo`, `make validate`, `make status`, `make clean`, `make uninstall` implemented per governance conventions
+- [x] Istio automation built (sidecar mode, Istio CNI plugin chained with Cilium) at the version pinned in `docs/VERSIONS.md` (1.30.3) — not yet installed against a live cluster
+- [x] Gateway/VirtualService/DestinationRule traffic-management examples written (path/exact/rewrite routing, subsets, canary, header routing) — statically validated, not yet runtime-validated
+- [x] mTLS, PeerAuthentication, AuthorizationPolicy, RequestAuthentication (JWT) examples written — not yet runtime-validated
+- [x] ServiceEntry/egress control and namespace-scoped `Sidecar` resource examples written — not yet runtime-validated
+- [x] Resilience patterns (retries/timeouts, fault injection, circuit breaking, outlier detection) written — not yet runtime-validated
+- [x] Cilium CNI-chaining compatibility gap detected and documented (`istio/docs/04-istio-cni-and-cilium.md`), with a prerequisite check and install-time hard-fail — never auto-remediated
+- [x] 16 concept documents (16 Mermaid diagrams) and 21 labs (`lab-00`–`lab-20`) written
+- [x] `make install`, `make deploy-demo`, `make validate-installation`, `make status`, `make clean`, `make uninstall` implemented per governance conventions (plus the full target list from the phase spec)
+- [ ] **Live cluster runtime validation actually performed** — deliberately not done in this session; no live cluster existed at the time (see `docs/VALIDATION-STATUS.md` Phase 4 detail for exact commands to complete this)
 
-**Known risks:** Istio/Cilium simultaneous traffic interception (`docs/DEPENDENCIES.md` §8) — must be validated even in the independent lab if Cilium NetworkPolicy is exercised here at all; if not exercised here, this risk is deferred to Phase 6.
+**Status: automation and documentation complete and statically validated; live-cluster runtime validation pending (no cluster existed this session, matching this phase's own "no live cluster available" execution policy).** See `docs/VALIDATION-STATUS.md` for the full breakdown.
+
+**Known risks:** Istio/Cilium simultaneous traffic interception (`docs/DEPENDENCIES.md` §8) is handled via CNI chaining rather than Cilium NetworkPolicy coexistence in this independent lab — the deeper multi-layer interaction (Cilium NetworkPolicy + Istio AuthorizationPolicy together) is deferred to Phase 6, as originally scoped. This cluster's existing Cilium install (Phase 2) does not yet set the two Helm values CNI chaining requires (`docs/DEPENDENCIES.md` §8, `istio/docs/04-istio-cni-and-cilium.md`) — documented with an exact, user-run remediation command, never auto-applied.
 
 **Out of scope:** Ambient mode (future advanced lab, per ADR-005); Kyverno or observability integration (reserved for Phase 6).
 

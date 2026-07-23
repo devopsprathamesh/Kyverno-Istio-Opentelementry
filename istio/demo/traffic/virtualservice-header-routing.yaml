@@ -1,0 +1,23 @@
+# Lab: labs/lab-08-header-based-routing.md
+# Requests carrying "x-canary-user: true" go to v2; every other
+# request falls back to v1 — route order matters (first match wins),
+# see docs/05-traffic-management.md "Route priority and configuration
+# conflicts".
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: frontend-header-routing
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  hosts: ["frontend"]
+  http:
+    - match:
+        - headers:
+            x-canary-user:
+              exact: "true"
+      route:
+        - destination: {host: frontend, subset: v2}
+    - route:
+        - destination: {host: frontend, subset: v1}

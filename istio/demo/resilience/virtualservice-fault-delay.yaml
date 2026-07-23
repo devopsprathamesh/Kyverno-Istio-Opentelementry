@@ -1,0 +1,23 @@
+# Lab: labs/lab-10-fault-injection.md — delay fault, 50% of requests,
+# 3s fixed delay. Injected at the VirtualService layer — the
+# traefik/whoami backend itself is never modified; Envoy delays the
+# request before it even reaches the application, which is precisely
+# the point being taught (this is testing Istio's fault-injection
+# capability, not application code — see root docs/DECISIONS.md's
+# Phase 4 demo-app-design note).
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: inventory-service-fault-delay
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  hosts: ["inventory-service"]
+  http:
+    - fault:
+        delay:
+          percentage: {value: 50.0}
+          fixedDelay: 3s
+      route:
+        - destination: {host: inventory-service}

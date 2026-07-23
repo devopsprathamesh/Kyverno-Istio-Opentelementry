@@ -1,0 +1,35 @@
+# Lab: labs/lab-14-authorization-policy.md — step 2 (continued)
+# order-service may call inventory-service and payment-service; nothing
+# else may. Two separate rules (not one combined selector) so each
+# downstream's allowed-caller set is independently reviewable.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-order-to-inventory
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  selector:
+    matchLabels: {app: inventory-service}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/istio-demo/sa/order-service"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-order-to-payment
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  selector:
+    matchLabels: {app: payment-service}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/istio-demo/sa/order-service"]

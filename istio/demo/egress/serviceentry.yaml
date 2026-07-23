@@ -1,0 +1,27 @@
+# Lab: labs/lab-16-egress-control.md
+#
+# Registers this lab's simulated external service so mesh workloads in
+# istio-demo can reach it once combined with the Sidecar egress scoping
+# in ../../policies/sidecar/ (lab 17) — applying both together is what
+# actually demonstrates "blocked without registration, reachable with
+# it", since a bare Kubernetes Service is already visible to Istio's
+# in-cluster registry on its own (a ServiceEntry alone doesn't add
+# anything new for an in-cluster host — the Sidecar resource's egress
+# host allowlist is what actually restricts/unblocks it). See
+# docs/08-egress-and-serviceentry.md for the full explanation of this
+# nuance and how it differs from a genuinely external (non-Kubernetes)
+# host, which is what ServiceEntry is designed for in production.
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: simulated-external-api
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  hosts:
+    - "simulated-external-api.istio-external.svc.cluster.local"
+  location: MESH_INTERNAL
+  ports:
+    - {number: 80, name: http, protocol: HTTP}
+  resolution: DNS

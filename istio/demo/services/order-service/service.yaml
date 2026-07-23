@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/name: order-service
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  selector:
+    app: order-service
+  ports:
+    - {name: http, port: 80, targetPort: 80}

@@ -1,0 +1,22 @@
+# Lab: labs/lab-14-authorization-policy.md — step 2
+# Explicit allow: only requests presenting the "frontend" ServiceAccount
+# identity may reach order-service. Principal matching uses the SPIFFE-
+# derived identity (docs/06-service-security-and-mtls.md "SPIFFE IDs
+# and trust domains"), not a header or IP — spoofing this would require
+# forging a workload's actual mTLS certificate, not just a request
+# header.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-frontend-to-order
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  selector:
+    matchLabels: {app: order-service}
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/istio-demo/sa/frontend"]

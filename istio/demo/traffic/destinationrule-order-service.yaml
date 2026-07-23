@@ -1,0 +1,32 @@
+# Lab: labs/lab-06-destinationrule-subsets.md, lab-11, lab-12
+# v1/v2 subsets for order-service, plus connection-pool and
+# outlier-detection settings used by labs 11-12 (kept here rather than
+# a separate resilience-only file since DestinationRule is the single
+# resource type that owns both subset AND resilience configuration —
+# see docs/09-resilience-patterns.md).
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: order-service
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  host: order-service
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 10
+      http:
+        http1MaxPendingRequests: 5
+        maxRequestsPerConnection: 2
+    outlierDetection:
+      consecutive5xxErrors: 3
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+  subsets:
+    - name: v1
+      labels: {version: v1}
+    - name: v2
+      labels: {version: v2}

@@ -1,0 +1,29 @@
+# Lab: labs/lab-05-virtualservice-routing.md
+# Demonstrates exact path, prefix path, and URI rewrite in one
+# VirtualService, targeting order-service directly (not through the
+# gateway) so it can be tested with a simple in-mesh curl.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: order-service-routing
+  namespace: istio-demo
+  labels:
+    app.kubernetes.io/part-of: istio-learning-lab
+spec:
+  hosts: ["order-service"]
+  http:
+    - name: exact-status-path
+      match:
+        - uri: {exact: /status}
+      route:
+        - destination: {host: order-service, subset: v1}
+    - name: prefix-api-path-with-rewrite
+      match:
+        - uri: {prefix: /api/orders}
+      rewrite:
+        uri: /
+      route:
+        - destination: {host: order-service, subset: v1}
+    - name: default-fallback
+      route:
+        - destination: {host: order-service, subset: v1}

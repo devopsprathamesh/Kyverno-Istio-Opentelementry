@@ -1,0 +1,36 @@
+# Istio `istiod` chart values — recommended profile (~32GB host RAM lab
+# profile). 2 replicas with a PodDisruptionBudget and preferred
+# anti-affinity, matching this repo's established pattern (compare
+# ../../kyverno/install/values-recommended.yaml's admission-controller
+# HA settings) — see docs/11-production-design.md "High availability".
+
+cni:
+  enabled: true
+
+replicaCount: 2
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    memory: 1024Mi
+
+global:
+  defaultPodDisruptionBudget:
+    enabled: true
+
+pdb:
+  minAvailable: 1
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: ["istiod"]
+          topologyKey: kubernetes.io/hostname

@@ -1,0 +1,21 @@
+# Istio `gateway` chart values (ingress) — minimum profile.
+#
+# service.type is deliberately ClusterIP, not the chart's own default
+# (LoadBalancer) — this cluster has no cloud load-balancer controller,
+# and this lab's access strategy is port-forward-only, never public
+# exposure by default. See docs/DECISIONS.md ADR-023.
+#
+# Key names confirmed against manifests/charts/gateway/values.yaml at
+# the pinned Istio 1.30.3 tag.
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi

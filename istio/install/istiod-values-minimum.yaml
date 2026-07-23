@@ -1,0 +1,27 @@
+# Istio `istiod` chart values — minimum profile (~16GB host RAM lab
+# profile). Single replica, no PodDisruptionBudget, conservative
+# resources. cni.enabled=true is the critical setting: it tells istiod
+# to expect the Istio CNI plugin to perform traffic interception,
+# instead of injecting an iptables init-container into every workload
+# pod — see docs/04-istio-cni-and-cilium.md "Init-container vs. Istio
+# CNI interception model".
+#
+# Key names confirmed against
+# manifests/charts/istio-control/istio-discovery/values.yaml at the
+# pinned Istio 1.30.3 tag.
+
+cni:
+  enabled: true
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi
+
+global:
+  defaultPodDisruptionBudget:
+    enabled: false

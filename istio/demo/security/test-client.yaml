@@ -1,0 +1,40 @@
+# Labs: labs/lab-13-strict-mtls.md, lab-14-authorization-policy.md,
+# lab-15-jwt-authentication.md
+#
+# A generic in-mesh (sidecar-injected) client pod used to make
+# authenticated, mTLS-covered requests from inside istio-demo, and a
+# second, un-injected "plaintext-client" Job used specifically to prove
+# strict mTLS rejects a request that never goes through an Envoy
+# sidecar at all.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: test-client
+  namespace: istio-demo
+  labels: {app.kubernetes.io/part-of: istio-learning-lab}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-client
+  namespace: istio-demo
+  labels:
+    app: test-client
+    app.kubernetes.io/part-of: istio-learning-lab
+    owner: platform-team
+    environment: lab
+spec:
+  serviceAccountName: test-client
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+  containers:
+    - name: curl
+      image: curlimages/curl:8.10.1
+      command: ["sleep", "3600"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: ["ALL"]}
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {memory: 32Mi}
