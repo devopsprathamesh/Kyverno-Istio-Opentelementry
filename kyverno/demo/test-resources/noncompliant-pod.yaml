@@ -1,0 +1,16 @@
+# Generic offline-test fixture — fails on labels, resource limits, and
+# security context all at once, so different policies can each pick the
+# specific dimension they check.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fixture-noncompliant-pod
+  namespace: kyverno-demo
+  labels:
+    lab-marker: intentionally-insecure
+spec:
+  containers:
+    - name: app
+      image: nginx:latest
+      securityContext:
+        privileged: true

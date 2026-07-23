@@ -1,0 +1,94 @@
+# Lab: labs/lab-05-restrict-privileged-containers.md
+#
+# Four independent rules, each rejecting one specific insecure pattern
+# from demo/insecure-workloads/, so a failure message always points at
+# exactly one concern rather than a single monolithic rule with a vague
+# combined message. See docs/12-security-and-governance.md "Kyverno vs.
+# Pod Security Admission" — this policy overlaps somewhat with what PSA's
+# "restricted" profile would also catch; both layers exist deliberately
+# (PSA is fast/built-in but coarse-grained; Kyverno is slower but can
+# express this lab's exact, explained-in-the-message business rules).
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-privileged-containers
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+  annotations:
+    policies.kyverno.io/title: Restrict Privileged Containers and Host Access
+    policies.kyverno.io/category: Pod Security, Lab
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Rejects privileged containers, host namespace usage (network/PID/
+      IPC), hostPath volumes, and a set of dangerous added Linux
+      capabilities.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: disallow-privileged
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      validate:
+        message: >-
+          privileged: true is not permitted. See
+          labs/lab-05-restrict-privileged-containers.md.
+        pattern:
+          spec:
+            containers:
+              - =(securityContext):
+                  =(privileged): "false"
+
+    - name: disallow-host-namespaces
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      validate:
+        message: >-
+          hostNetwork, hostPID, and hostIPC are not permitted. See
+          labs/lab-05-restrict-privileged-containers.md.
+        pattern:
+          spec:
+            =(hostNetwork): "false"
+            =(hostPID): "false"
+            =(hostIPC): "false"
+
+    - name: disallow-hostpath-volumes
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      validate:
+        message: >-
+          hostPath volumes are not permitted in this cluster. Use a safe
+          volume type (emptyDir, ConfigMap, Secret, or a PVC against the
+          lab's local-path StorageClass). See
+          labs/lab-05-restrict-privileged-containers.md.
+        pattern:
+          spec:
+            =(volumes):
+              - X(hostPath): "*"
+
+    - name: disallow-dangerous-capabilities
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      validate:
+        message: >-
+          One or more added Linux capabilities on this container are on
+          the disallowed list (SYS_ADMIN, NET_ADMIN, SYS_PTRACE,
+          SYS_MODULE, NET_RAW). See
+          labs/lab-05-restrict-privileged-containers.md.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.securityContext.capabilities.add[] || `[]` }}"
+                    operator: AnyIn
+                    value: ["SYS_ADMIN", "NET_ADMIN", "SYS_PTRACE", "SYS_MODULE", "NET_RAW"]

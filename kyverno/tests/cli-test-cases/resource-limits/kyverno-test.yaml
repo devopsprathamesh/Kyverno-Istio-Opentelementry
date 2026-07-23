@@ -1,0 +1,23 @@
+# Offline Kyverno CLI test manifest — run via `kyverno test tests/cli-test-cases/`.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: resource-limits-test
+policies:
+  - ../../../policies/validate/require-resource-limits.yaml
+resources:
+  - ../../../demo/test-resources/compliant-deployment.yaml
+  - ../../../demo/test-resources/noncompliant-deployment.yaml
+results:
+  - policy: require-resource-limits
+    rule: validate-resources
+    kind: Deployment
+    resources:
+      - kyverno-demo/fixture-compliant-deployment
+    result: pass
+  - policy: require-resource-limits
+    rule: validate-resources
+    kind: Deployment
+    resources:
+      - kyverno-demo/fixture-noncompliant-deployment
+    result: fail

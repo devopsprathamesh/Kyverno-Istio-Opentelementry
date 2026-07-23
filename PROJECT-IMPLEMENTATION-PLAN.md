@@ -79,14 +79,17 @@ This is the authoritative phase list for this repository. Each phase is built, v
 **Validation requirements:** Each policy type demonstrably enforces (or reports on, in audit mode) its intended behavior against a test resource; `make validate` confirms Kyverno controller health and policy report generation; `make uninstall` leaves no residual CRDs/webhooks/namespace.
 
 **Definition of done:**
-- [ ] Kyverno installed at the version pinned in `docs/VERSIONS.md`
-- [ ] At least one working example of each required policy type
-- [ ] Policy exceptions and policy reports demonstrated
-- [ ] Admission vs. background processing and audit vs. enforce mode both demonstrated
-- [ ] At least one documented production-style failure scenario and its resolution
-- [ ] `make install`, `make deploy-demo`, `make validate`, `make status`, `make clean`, `make uninstall` implemented per governance conventions
+- [x] Kyverno automation pinned at the version recorded in `docs/VERSIONS.md` (chart 3.8.2 / app v1.18.2) — not yet installed against a live cluster
+- [x] At least one working example of each required policy type (17 policies across all 9 `policies/` subdirectories) — statically validated, not yet runtime-validated
+- [x] Policy exceptions and policy reports demonstrated in lab documentation and automation — not yet runtime-validated
+- [x] Admission vs. background processing and audit vs. enforce mode both documented and both have dedicated labs/policies — not yet runtime-validated
+- [x] At least one documented production-style failure scenario and its resolution (`kyverno/docs/14-troubleshooting.md`'s 27-row table, exercised hands-on in `labs/lab-16-troubleshooting.md`)
+- [x] `make install`, `make deploy-demo`, `make validate-installation`, `make status`, `make clean`, `make uninstall` implemented per governance conventions (plus the full target list from the phase spec)
+- [ ] **Live cluster runtime validation actually performed** — deliberately not done in this session; no live cluster existed at the time (see `docs/VALIDATION-STATUS.md` Phase 3 detail for exact commands to complete this)
 
-**Known risks:** Kyverno's default cluster-wide webhook scope requires careful `kube-system`/`kyverno` namespace exclusion (see `docs/DEPENDENCIES.md` §2) to avoid locking out cluster operations during the lab.
+**Status: automation and documentation complete and statically validated; live-cluster runtime validation pending (no cluster existed this session, matching this phase's own "no live cluster available" execution policy).** See `docs/VALIDATION-STATUS.md` for the full breakdown.
+
+**Known risks:** Kyverno's default cluster-wide webhook scope requires careful `kube-system`/`kyverno` namespace exclusion (see `docs/DEPENDENCIES.md` §2) to avoid locking out cluster operations during the lab — this lab's `install/values-*.yaml` extend the chart's default `resourceFiltersExcludeNamespaces` accordingly, but this has not yet been runtime-confirmed. Kyverno's exact webhook-configuration and CRD names were not hardcoded where genuinely chart-version-dependent (this lab's automation discovers them by prefix/label rather than exact name — see `kyverno/scripts/lib/kubernetes.sh`), a defensive pattern adopted after the SIGPIPE-under-pipefail lesson from Phase 2. `verifyImages`'s keyless path depends on outbound network access to Sigstore's Rekor, not fully testable in a restricted-network environment (documented in `kyverno/docs/08-image-verification.md`, not hidden).
 
 **Out of scope:** Istio or observability integration (reserved for Phase 6).
 

@@ -1,0 +1,44 @@
+# Offline Kyverno CLI test manifest — run via `kyverno test tests/cli-test-cases/`.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: privileged-containers-test
+policies:
+  - ../../../policies/validate/restrict-privileged-containers.yaml
+resources:
+  - ../../../demo/test-resources/compliant-pod.yaml
+  - ../../../demo/insecure-workloads/pod-privileged.yaml
+  - ../../../demo/insecure-workloads/pod-host-namespaces.yaml
+  - ../../../demo/insecure-workloads/pod-hostpath-volume.yaml
+  - ../../../demo/insecure-workloads/pod-dangerous-capabilities.yaml
+results:
+  - policy: restrict-privileged-containers
+    rule: disallow-privileged
+    kind: Pod
+    resources:
+      - kyverno-demo/fixture-compliant-pod
+    result: pass
+  - policy: restrict-privileged-containers
+    rule: disallow-privileged
+    kind: Pod
+    resources:
+      - kyverno-demo/insecure-privileged
+    result: fail
+  - policy: restrict-privileged-containers
+    rule: disallow-host-namespaces
+    kind: Pod
+    resources:
+      - kyverno-demo/insecure-host-namespaces
+    result: fail
+  - policy: restrict-privileged-containers
+    rule: disallow-hostpath-volumes
+    kind: Pod
+    resources:
+      - kyverno-demo/insecure-hostpath
+    result: fail
+  - policy: restrict-privileged-containers
+    rule: disallow-dangerous-capabilities
+    kind: Pod
+    resources:
+      - kyverno-demo/insecure-capabilities
+    result: fail

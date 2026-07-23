@@ -1,0 +1,63 @@
+# Lab: labs/lab-04-require-resource-limits.md
+#
+# Adapted from Kyverno's official "Require Limits and Requests" sample
+# policy (kyverno.io policy library, "require-requests-limits"). Kept
+# structurally identical (the =(field) optional-anchor pattern for
+# ephemeralContainers/initContainers is the standard, documented idiom
+# for "validate this array only if it's present"); modified here only
+# to: use this lab's message/annotation style, and require BOTH cpu+
+# memory requests and a memory limit (the official sample requires
+# fewer fields by default) to match this lab's stricter baseline.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resource-limits
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+  annotations:
+    policies.kyverno.io/title: Require Resource Requests and Limits
+    policies.kyverno.io/category: Best Practices, Lab
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Requires CPU+memory requests and a memory limit on every
+      container, initContainer, and ephemeralContainer. Unbounded
+      containers are the most common cause of noisy-neighbor node
+      pressure in a shared cluster.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: validate-resources
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      validate:
+        message: >-
+          Every container, initContainer, and ephemeralContainer must
+          set resources.requests.cpu, resources.requests.memory, and
+          resources.limits.memory. See labs/lab-04-require-resource-limits.md.
+        pattern:
+          spec:
+            =(ephemeralContainers):
+              - =(resources):
+                  requests:
+                    memory: "?*"
+                    cpu: "?*"
+                  limits:
+                    memory: "?*"
+            =(initContainers):
+              - resources:
+                  requests:
+                    memory: "?*"
+                    cpu: "?*"
+                  limits:
+                    memory: "?*"
+            containers:
+              - resources:
+                  requests:
+                    memory: "?*"
+                    cpu: "?*"
+                  limits:
+                    memory: "?*"

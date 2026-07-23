@@ -1,0 +1,45 @@
+# Lab: labs/lab-17-production-readiness.md
+#
+# Adapted from Kyverno's official "Require Pod Probes" sample policy —
+# structure kept identical (the =(livenessProbe)/=(readinessProbe)
+# optional-anchor style matches the official example); modified to add
+# this lab's message/annotation style and to require BOTH probe types
+# rather than either/or, matching a stricter production baseline.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-probes-production
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+  annotations:
+    policies.kyverno.io/title: Require Liveness and Readiness Probes
+    policies.kyverno.io/category: Production, Lab
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Deployment
+    policies.kyverno.io/description: >-
+      Requires every container in a Deployment to define both a
+      livenessProbe and a readinessProbe. Without these, Kubernetes
+      cannot detect a hung process (no liveness) or route traffic away
+      from a not-yet-ready replica (no readiness) — two of the most
+      common causes of production incidents that "should have been
+      caught automatically."
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: require-probes
+      match:
+        any:
+          - resources:
+              kinds: ["Deployment"]
+      validate:
+        message: >-
+          Every container must define both livenessProbe and
+          readinessProbe. See labs/lab-17-production-readiness.md.
+        pattern:
+          spec:
+            template:
+              spec:
+                containers:
+                  - livenessProbe: "?*"
+                    readinessProbe: "?*"

@@ -1,0 +1,40 @@
+# The lab's one "real application" workload — a minimal, otherwise-safe
+# Deployment used across the mutate/generate/background-scan labs.
+# Deliberately has: only ONE required label set (app.kubernetes.io/name)
+# and NO explicit securityContext, so labs/lab-06 (mutate default
+# labels) and labs/lab-07 (mutate security context) have real, visible
+# "before" state to mutate — this is not one of demo/insecure-workloads/
+# (nothing here is privileged/root/hostPath/etc.), it is simply
+# incomplete, which is the realistic day-to-day case Kyverno mutation
+# policies are built for.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-web-app
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/name: demo-web-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: demo-web-app}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: demo-web-app}
+    spec:
+      containers:
+        - name: web
+          image: registry.k8s.io/pause:3.10
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 32Mi}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-web-app-config
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/name: demo-web-app
+data:
+  greeting: "Hello from the Kyverno lab's demo application."

@@ -1,0 +1,80 @@
+# Kyverno Helm values — recommended profile (~32GB host RAM lab profile).
+# Demonstrates real HA patterns where this lab's capacity actually
+# supports them, without pushing replica counts high enough to make the
+# local cluster sluggish (the admission-controller — the one component
+# every API request's latency depends on — gets 2 replicas plus a PDB
+# and soft anti-affinity; the other three controllers stay at 1 replica,
+# since they're not in the synchronous request path and 2x'ing all four
+# would meaningfully eat into headroom this profile needs for later
+# Istio/observability phases sharing the same cluster).
+#
+# See ../docs/11-production-design.md "High availability" for the full
+# reasoning, including what a genuinely production-scale profile would
+# add beyond what's practical in this local lab.
+
+admissionController:
+  replicas: 2
+  container:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 384Mi
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values: ["admission-controller"]
+          topologyKey: kubernetes.io/hostname
+
+backgroundController:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  podDisruptionBudget:
+    enabled: false
+
+cleanupController:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  podDisruptionBudget:
+    enabled: false
+
+reportsController:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  podDisruptionBudget:
+    enabled: false
+
+config:
+  resourceFiltersExcludeNamespaces:
+    - kube-system
+    - kube-public
+    - kube-node-lease
+    - cilium
+    - hubble

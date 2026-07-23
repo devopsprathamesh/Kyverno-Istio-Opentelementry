@@ -1,0 +1,23 @@
+# INTENTIONALLY INSECURE LAB RESOURCE — adds dangerous Linux
+# capabilities (SYS_ADMIN, NET_ADMIN) and a writable root filesystem,
+# with no seccomp profile set. Used in
+# labs/lab-05-restrict-privileged-containers.md.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insecure-capabilities
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+    lab-marker: intentionally-insecure
+spec:
+  containers:
+    - name: app
+      image: registry.k8s.io/pause:3.10
+      securityContext:
+        capabilities:
+          add: ["SYS_ADMIN", "NET_ADMIN"]
+        readOnlyRootFilesystem: false
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {memory: 32Mi}

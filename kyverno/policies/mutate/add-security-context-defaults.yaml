@@ -1,0 +1,56 @@
+# Lab: labs/lab-07-mutate-security-context.md
+#
+# Adds secure defaults ONLY when the corresponding field is absent —
+# every anchor here is `+()` (addIfNotPresent). A Pod that already sets
+# runAsNonRoot: false intentionally (unusual, but possible for a
+# workload with a documented, reviewed exception) is left alone by this
+# policy; PolicyException is the correct tool for that case (see
+# labs/lab-10-policy-exceptions.md), not a mutation policy silently
+# fighting the workload's own spec.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: add-security-context-defaults
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+  annotations:
+    policies.kyverno.io/title: Add Secure SecurityContext Defaults
+    policies.kyverno.io/category: Pod Security, Lab
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Adds runAsNonRoot, allowPrivilegeEscalation: false, a
+      RuntimeDefault seccomp profile, and dropped ALL capabilities —
+      only where those fields are not already set.
+spec:
+  background: false
+  rules:
+    - name: add-pod-level-defaults
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      mutate:
+        patchStrategicMerge:
+          spec:
+            securityContext:
+              +(runAsNonRoot): true
+              +(seccompProfile):
+                type: RuntimeDefault
+
+    - name: add-container-level-defaults
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      mutate:
+        foreach:
+          - list: "request.object.spec.containers"
+            patchStrategicMerge:
+              spec:
+                containers:
+                  - (name): "{{ element.name }}"
+                    securityContext:
+                      +(allowPrivilegeEscalation): false
+                      +(capabilities):
+                        +(drop): ["ALL"]

@@ -1,0 +1,40 @@
+# Lab: labs/lab-13-cleanup-policies.md
+#
+# Namespaced CleanupPolicy (not ClusterCleanupPolicy) — its own
+# metadata.namespace confines it to kyverno-demo, so it can never reach
+# any other namespace even if the selector below were accidentally
+# widened later. The selector is additionally narrow: only Pods carrying
+# BOTH the lab-marker=intentionally-insecure label AND older than 1
+# hour. Never touches demo/applications/ or demo/compliant-workloads/
+# resources, which carry no lab-marker label.
+apiVersion: kyverno.io/v2
+kind: CleanupPolicy
+metadata:
+  name: cleanup-lab-marker-pods
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+  annotations:
+    policies.kyverno.io/title: Clean Up Short-Lived Lab Marker Pods
+    policies.kyverno.io/category: Lab
+    policies.kyverno.io/severity: low
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Deletes Pods in kyverno-demo labeled
+      lab-marker=intentionally-insecure once they are older than 1 hour
+      — a safe, narrowly-scoped cleanup exercise using short-lived,
+      clearly-labeled test resources only.
+spec:
+  match:
+    any:
+      - resources:
+          kinds: ["Pod"]
+          selector:
+            matchLabels:
+              lab-marker: intentionally-insecure
+  conditions:
+    any:
+      - key: "{{ time_since('', '{{ request.object.metadata.creationTimestamp }}', '') }}"
+        operator: GreaterThan
+        value: 1h
+  schedule: "*/15 * * * *"

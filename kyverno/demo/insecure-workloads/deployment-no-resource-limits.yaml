@@ -1,0 +1,28 @@
+# INTENTIONALLY INSECURE LAB RESOURCE — no resource requests/limits on
+# either container. Used in labs/lab-04-require-resource-limits.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insecure-no-limits
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/name: insecure-no-limits
+    app.kubernetes.io/part-of: kyverno-learning-lab
+    owner: platform-team
+    environment: lab
+    lab-marker: intentionally-insecure
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: insecure-no-limits}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: insecure-no-limits}
+    spec:
+      initContainers:
+        - name: init-noop
+          image: registry.k8s.io/pause:3.10
+          command: ["true"]
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10

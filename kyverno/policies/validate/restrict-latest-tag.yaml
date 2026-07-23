@@ -1,0 +1,49 @@
+# Lab: referenced across labs/lab-05, docs/production-examples.
+# Matches: demo/insecure-workloads/pod-latest-tag.yaml
+#
+# Adapted from Kyverno's official "Disallow Latest Tag" sample policy —
+# kept structurally identical (the negative-lookahead-style regex on
+# the image reference is the standard documented approach); modified
+# only to fit this lab's annotation/message style.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-latest-tag
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+  annotations:
+    policies.kyverno.io/title: Disallow Latest Image Tag
+    policies.kyverno.io/category: Best Practices, Lab
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Rejects images with no tag or an explicit ":latest" tag. A
+      floating tag makes rollbacks and incident forensics unreliable —
+      you cannot know what actually ran.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: require-pinned-tag
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      validate:
+        message: >-
+          Image must use a pinned, non-"latest" tag. See
+          labs/lab-05-restrict-privileged-containers.md.
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                any:
+                  # Explicit ":latest" tag.
+                  - key: "{{ regex_match('^.*:latest$', element.image) }}"
+                    operator: Equals
+                    value: true
+                  # No tag at all (defaults to :latest at pull time,
+                  # which is exactly as unpinned as writing it explicitly).
+                  - key: "{{ contains(element.image, ':') }}"
+                    operator: Equals
+                    value: false

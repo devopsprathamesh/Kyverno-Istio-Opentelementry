@@ -1,0 +1,19 @@
+# Offline Kyverno CLI test manifest for a MUTATE policy — run via
+# `kyverno test tests/cli-test-cases/`. Uses `patchedResources` to assert
+# the exact post-mutation object, not just a pass/fail verdict.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: mutate-labels-test
+policies:
+  - ../../../policies/mutate/add-default-labels.yaml
+resources:
+  - resource-missing-labels.yaml
+results:
+  - policy: add-default-labels
+    rule: add-safe-default-labels
+    kind: Pod
+    resources:
+      - kyverno-demo/mutate-fixture-pod
+    patchedResources: resource-missing-labels.patched.yaml
+    result: pass

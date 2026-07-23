@@ -215,3 +215,99 @@ Each ADR follows: Status, Context, Decision, Alternatives considered, Consequenc
 **Risks:** A downstream lab that doesn't read `docs/STORAGE.md` first could be surprised by node-affinity-driven scheduling constraints on a StatefulSet using this storage. Documented explicitly to mitigate.
 
 **Validation requirements:** `auto-setup-default-kube-env/tests/storage-test.sh` — create PVC, create pod, write data, read data, restart pod, confirm persistence, clean up — must pass before this module's Definition of Done is met.
+
+## ADR-013: Audit-first policy rollout
+
+**Status:** Accepted
+
+**Context:** `kyverno/` needs a default posture for how every new policy reaches production enforcement. Going straight to `Enforce` risks blocking legitimate workloads on a policy whose real-world blast radius was never measured; staying in `Audit` forever provides no actual protection.
+
+**Decision:** Every policy that has an enforce-mode variant ships with a paired audit-mode file (`kyverno/policies/audit/require-labels-audit.yaml` alongside `kyverno/policies/validate/require-labels-enforce.yaml`), and every lab teaching a validate policy explicitly demonstrates applying Audit first, reviewing `PolicyReport` data, and only then switching to Enforce (`kyverno/labs/lab-02-audit-vs-enforce.md`).
+
+**Alternatives considered:** A single policy file with `validationFailureAction` left as a user-supplied Helm/kustomize parameter — rejected: makes the audit-first *step* optional/skippable rather than a concrete, separately-applied artifact a learner has to consciously replace.
+
+**Consequences:** More policy files to maintain (two per enforced rule instead of one), in exchange for the rollout discipline being structurally encouraged rather than just documented as a recommendation nobody follows under time pressure.
+
+**Risks:** The audit and enforce twins could drift out of sync (different `match`/`pattern` logic) if edited independently without care — mitigated by keeping their rule logic intentionally identical, differing only in `validationFailureAction`, and noting this explicitly in each file's header comment.
+
+**Validation requirements:** `kyverno/tests/cli-test-cases/` test resources apply identically to both twins where relevant, confirming logic parity.
+
+## ADR-014: Namespace exclusion strategy
+
+**Status:** Accepted
+
+**Context:** Every Kyverno policy needs a namespace-exclusion posture. Too broad, and large parts of the cluster go silently unpoliced; too narrow (or none at all), and Kyverno's own namespace or core system namespaces risk being gated by policies never meant for them.
+
+**Decision:** A short, explicit, documented default exclusion list (`kyverno/config/namespaces.env`'s `DEFAULT_EXCLUDED_NAMESPACES`: `kube-system`, `kube-public`, `kube-node-lease`, `kyverno`, `cilium`, `hubble`), applied via the chart's additive `config.resourceFiltersExcludeNamespaces` (not a wholesale replacement of Kyverno's own built-in `resourceFilters` defaults), with `cilium`/`hubble` explicitly documented as currently-no-op entries (Phase 2 installs both into `kube-system`, already covered) rather than silently assumed to matter.
+
+**Alternatives considered:** A wildcard/label-based exclusion (e.g., excluding any namespace labeled `system=true`) — rejected: root `docs/DEPENDENCIES.md`/`kyverno/docs/12-security-and-governance.md` both call out explicitly why open-ended exclusions are a governance risk (any future namespace matching the pattern silently becomes unpoliced with no review).
+
+**Consequences:** Adding a new excluded namespace is a deliberate, reviewable, one-line change to a config file — never an emergent side effect of a label or pattern.
+
+**Risks:** An overly short exclusion list could gate `kube-system`-adjacent operations if a policy's `match` is too broad — mitigated by keeping the default list conservative and requiring every policy to still pass its own narrow `match` review (root `docs/REPOSITORY-GOVERNANCE.md`).
+
+**Validation requirements:** `kyverno/tests/static-validation.sh`'s policy-quality checks confirm no policy uses an unsafe wildcard `kinds` match that would bypass namespace scoping entirely.
+
+## ADR-015: Kyverno CLI for offline policy testing
+
+**Status:** Accepted
+
+**Context:** Waiting for a live cluster to validate every policy edit is slow and, per this phase's own execution constraints, not always even possible (no cluster existed during this phase's implementation).
+
+**Decision:** Every policy in `kyverno/policies/` that can be meaningfully tested offline has a corresponding `kyverno test`-format manifest under `kyverno/tests/cli-test-cases/`, checked into version control, run via `make test-static` — no live cluster required. Cases the CLI cannot fully validate offline (live `context.apiCall` results, real `verifyImages` network verification, real 1-hour-aged `CleanupPolicy` triggers) are explicitly documented as such (`kyverno/tests/static-validation.sh`'s own log output, `kyverno/tests/expected-results.md`), not silently assumed covered.
+
+**Alternatives considered:** Testing policies exclusively against a live cluster — rejected: makes policy correctness feedback slow, and would have been entirely unavailable for this phase's implementation given no cluster existed at the time.
+
+**Consequences:** A meaningful fraction of policy bugs (syntax errors, pattern-logic mistakes) are caught before ever reaching a cluster, at the cost of maintaining a second set of test fixtures alongside the policies themselves.
+
+**Risks:** A false sense of complete coverage if "passed offline" is mistaken for "fully validated" — mitigated by `kyverno/tests/expected-results.md` explicitly distinguishing what each test does and doesn't prove, and every relevant lab pairing an offline test with the corresponding live-cluster runtime test script.
+
+**Validation requirements:** `make test-static` must pass before any policy is considered ready for a live-cluster rollout attempt.
+
+## ADR-016: Safe, narrowly-scoped PolicyExceptions only
+
+**Status:** Accepted
+
+**Context:** `PolicyException` is powerful and easy to misuse — a broadly-scoped exception silently weakens the policy it exempts from for an open-ended set of resources, with no structural signal that it happened.
+
+**Decision:** This lab's one shipped exception (`kyverno/policies/exceptions/allow-demo-hostpath-exception.yaml`) is scoped by exact resource `names` (never a label selector matching an open-ended set), for exactly one rule of exactly one policy, and carries documented (if not Kyverno-enforced) `expires`/`approved-by`/`ticket` annotations. `kyverno/tests/exception-tests.sh` explicitly asserts the negative case: a differently-named resource with the identical pattern is still rejected. Cleanup policies similarly default to namespaced `CleanupPolicy`, never `ClusterCleanupPolicy`, for the same narrow-scoping reasoning.
+
+**Alternatives considered:** Selector-based exceptions for convenience (avoiding a growing `names` list as more resources need the same exemption) — rejected as the default pattern: convenience here directly trades away the auditability that makes exceptions safe to use at all; a growing `names` list is a feature (visible, reviewable growth), not a bug.
+
+**Consequences:** Exceptions require more upkeep (naming each resource explicitly) than a selector would, in exchange for every exception's blast radius being exactly, structurally, what it appears to be.
+
+**Risks:** Kyverno's `PolicyException` CRD has no built-in expiration enforcement — the annotation convention is process, not code, and only as good as whatever external check (not yet built in this repo) enforces it. Documented explicitly as a gap in `kyverno/docs/09-policy-exceptions.md`, not hidden.
+
+**Validation requirements:** `kyverno/tests/exception-tests.sh`'s negative-case assertion must pass for any new exception added to this lab.
+
+## ADR-017: Kyverno and Pod Security Admission responsibility split
+
+**Status:** Accepted
+
+**Context:** Both Kyverno and Pod Security Admission (PSA) can reject a Pod at admission time, and both are present in this repository's target cluster (PSA is part of core Kubernetes since 1.25; Kyverno is this module's install). Without a clear responsibility split, it's unclear which layer "owns" a given rejection, and policies could be written redundantly across both.
+
+**Decision:** PSA is treated as a fast, zero-dependency, coarse-grained floor (its three fixed profiles); Kyverno is treated as the layer for anything organization-specific PSA structurally cannot express (required labels, resource limits, image provenance, generation, exceptions). `kyverno-demo`'s own PSA posture is deliberately set to `privileged` (no PSA restriction) specifically so this lab's Kyverno-focused demonstrations aren't pre-empted by PSA catching the same fixtures first — documented explicitly in `kyverno/demo/namespace.yaml`'s own comment and `kyverno/docs/12-security-and-governance.md`, with `kyverno/labs/lab-05-restrict-privileged-containers.md` step 4 letting a learner directly observe both layers side by side.
+
+**Alternatives considered:** Using Kyverno to fully replace PSA's role, disabling PSA restrictions everywhere — rejected: gives up a free, always-on, non-Kyverno-dependent baseline for no benefit, and couples basic Pod-security hygiene to Kyverno's own availability (docs/11-production-design.md HA concerns).
+
+**Consequences:** A real deployment following this repo's pattern runs both layers together outside this specific demo namespace — PSA `restricted`/`baseline` cluster-wide as a floor, Kyverno for everything else.
+
+**Risks:** A learner could mistakenly assume `kyverno-demo`'s permissive PSA posture is a template for real namespaces — mitigated by the explicit, repeated documentation callouts (README, namespace manifest, docs/12) that it is not.
+
+**Validation requirements:** `kyverno/labs/lab-05-restrict-privileged-containers.md` step 4 must be run at least once to confirm both layers are independently observable, not merely documented.
+
+## ADR-018: `ClusterPolicy`/`Policy` v1 as the primary teaching API over CEL-based policy types
+
+**Status:** Accepted
+
+**Context:** Kyverno 1.17 promoted CEL-based policy types (`ValidatingPolicy`, `ImageValidatingPolicy`, `GeneratingPolicy`, etc.) to GA, and `ClusterPolicy`/`Policy` (the original JMESPath-pattern API) is now formally deprecated, with removal targeted for Kyverno v1.20 (~October 2026) — not yet removed as of the pinned v1.18.2.
+
+**Decision:** `kyverno/policies/` uses `ClusterPolicy`/`Policy` (`kyverno.io/v1`) as the primary teaching vehicle for this entire lab. The CEL-based direction is documented explicitly and accurately (`kyverno/docs/02-architecture-and-internals.md`'s CRD table, `kyverno/docs/04-policy-anatomy.md`'s `cel` section, `kyverno/docs/DECISIONS.md` — this ADR) as the current, real, forward-looking migration path — never hidden or described as removed, since it isn't.
+
+**Alternatives considered:** Building this lab exclusively on the newer CEL-based types, as the more "future-proof" choice — rejected for this lab specifically: nearly every rule-anatomy concept the phase's own requirements call out (`pattern`, `anyPattern`, `deny`, `foreach`, JMESPath, `context`) is `ClusterPolicy`/`Policy`-API surface area, `ClusterPolicy`/`Policy` remains what the overwhelming majority of existing production Kyverno deployments, public examples, and interview contexts use today, and it is still fully functional through the pinned version — a lab teaching only the not-yet-widely-adopted API would be less immediately useful to a learner working with real-world Kyverno clusters right now.
+
+**Consequences:** This lab will need a follow-up pass (out of scope for Phase 3) once `ClusterPolicy`/`Policy` is closer to actual removal (targeted v1.20) to migrate its primary teaching API to the CEL-based types — this is planned obsolescence, acknowledged now rather than discovered later.
+
+**Risks:** A learner using this lab after `ClusterPolicy` removal would need to translate its policies to the CEL-based equivalents — mitigated by the explicit, present-tense documentation of the migration direction throughout, so the eventual transition is not a surprise.
+
+**Validation requirements:** Revisit this ADR's decision explicitly (not silently) once Kyverno v1.20 (or its actual removal timeline) is closer, per root `docs/REPOSITORY-GOVERNANCE.md`'s documentation-currency expectations.

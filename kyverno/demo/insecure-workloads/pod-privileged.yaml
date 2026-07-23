@@ -1,0 +1,21 @@
+# INTENTIONALLY INSECURE LAB RESOURCE — privileged: true. Used in
+# labs/lab-05-restrict-privileged-containers.md. Not host-destructive:
+# privileged mode is granted but the container only sleeps; it is never
+# actually used to touch the host.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insecure-privileged
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+    lab-marker: intentionally-insecure
+spec:
+  containers:
+    - name: app
+      image: registry.k8s.io/pause:3.10
+      securityContext:
+        privileged: true
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {memory: 32Mi}

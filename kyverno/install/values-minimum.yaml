@@ -1,0 +1,76 @@
+# Kyverno Helm values — minimum profile (~16GB host RAM lab profile,
+# see ../../auto-setup-default-kube-env/docs/ARCHITECTURE.md "Resource
+# planning"). Single replica per controller, no PodDisruptionBudget, no
+# anti-affinity — a single-worker-class cluster has nowhere meaningful
+# to spread pods across anyway at this profile's scale.
+#
+# Key names below are confirmed against the kyverno/kyverno chart's
+# values.yaml structure (charts/kyverno/values.yaml on the kyverno-chart-
+# v3.8.2 line: admissionController/backgroundController/cleanupController/
+# reportsController each have `replicas`, `resources` or (for
+# admissionController specifically) `container.resources`, and
+# `podDisruptionBudget`). Re-verify with
+# `helm show values kyverno/kyverno --version 3.8.2` before relying on
+# any key not exercised by `make install` + `helm lint` in this repo's
+# own validation.
+
+admissionController:
+  replicas: 1
+  container:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+  podDisruptionBudget:
+    enabled: false
+
+backgroundController:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 30m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  podDisruptionBudget:
+    enabled: false
+
+cleanupController:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 30m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  podDisruptionBudget:
+    enabled: false
+
+reportsController:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 30m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  podDisruptionBudget:
+    enabled: false
+
+# Extends (not replaces) Kyverno's own extensive built-in resourceFilters
+# default list — see ../config/namespaces.env for the full documented
+# rationale behind this exact namespace set.
+config:
+  resourceFiltersExcludeNamespaces:
+    - kube-system
+    - kube-public
+    - kube-node-lease
+    - cilium
+    - hubble
+  # Kyverno's own namespace is excluded from its own enforcement by the
+  # chart's excludeKyvernoNamespace default (left at its default: true).

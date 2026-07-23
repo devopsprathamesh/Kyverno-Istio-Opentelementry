@@ -1,0 +1,32 @@
+# The one resource named in
+# ../../policies/exceptions/allow-demo-hostpath-exception.yaml. Used in
+# labs/lab-10-policy-exceptions.md to show that this specific,
+# by-name-exempted Pod is admitted despite using a hostPath volume,
+# while demo/insecure-workloads/pod-hostpath-volume.yaml (same pattern,
+# different name) is still rejected by the same policy.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-approved-hostpath-reader
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/name: demo-approved-hostpath-reader
+    app.kubernetes.io/part-of: kyverno-learning-lab
+    owner: platform-team
+    environment: lab
+spec:
+  containers:
+    - name: app
+      image: registry.k8s.io/pause:3.10
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {memory: 32Mi}
+      volumeMounts:
+        - name: host-tmp
+          mountPath: /host-tmp
+          readOnly: true
+  volumes:
+    - name: host-tmp
+      hostPath:
+        path: /tmp
+        type: Directory

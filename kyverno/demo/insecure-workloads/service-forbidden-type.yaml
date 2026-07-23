@@ -1,0 +1,20 @@
+# INTENTIONALLY INSECURE LAB RESOURCE — Service of type LoadBalancer,
+# forbidden in this lab (no cloud load-balancer controller exists on the
+# local VirtualBox platform, and in many real platform-engineering
+# shops LoadBalancer creation is restricted to a small approved set of
+# teams/namespaces). Used in policies/production-examples/.
+apiVersion: v1
+kind: Service
+metadata:
+  name: insecure-loadbalancer
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+    lab-marker: intentionally-insecure
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: demo-web-app
+  ports:
+    - port: 80
+      targetPort: 80

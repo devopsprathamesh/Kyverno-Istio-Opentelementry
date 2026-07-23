@@ -1,0 +1,18 @@
+# INTENTIONALLY INSECURE LAB RESOURCE — missing the labels required by
+# policies/validate/require-labels-enforce.yaml. Used in
+# labs/lab-03-require-labels.md.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insecure-missing-labels
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+    lab-marker: intentionally-insecure
+spec:
+  containers:
+    - name: app
+      image: registry.k8s.io/pause:3.10
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {memory: 32Mi}

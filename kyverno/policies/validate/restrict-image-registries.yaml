@@ -1,0 +1,43 @@
+# Lab: labs/lab-03-require-labels.md (referenced), production-examples/
+# Matches: demo/insecure-workloads/pod-unapproved-registry.yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-image-registries
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+  annotations:
+    policies.kyverno.io/title: Restrict Image Registries
+    policies.kyverno.io/category: Supply Chain, Lab
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Only images from registry.k8s.io, ghcr.io/kyverno, and
+      docker.io/library may run in this cluster. Anything else is
+      rejected — narrowing the registry surface is one of the cheapest,
+      highest-leverage supply-chain controls available.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: allowed-registries-only
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      validate:
+        message: >-
+          Image registry not on the approved list (registry.k8s.io,
+          ghcr.io/kyverno, docker.io/library). See
+          policies/validate/restrict-image-registries.yaml for the
+          allowlist.
+        anyPattern:
+          - spec:
+              containers:
+                - image: "registry.k8s.io/*"
+          - spec:
+              containers:
+                - image: "ghcr.io/kyverno/*"
+          - spec:
+              containers:
+                - image: "docker.io/library/*"

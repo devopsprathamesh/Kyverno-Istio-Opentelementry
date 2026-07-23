@@ -1,0 +1,17 @@
+# Input fixture for mutate-labels-test.yaml — has app.kubernetes.io/name
+# set but is missing environment/owner/app.kubernetes.io/part-of, which
+# ../../policies/mutate/add-default-labels.yaml should add.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mutate-fixture-pod
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/name: mutate-fixture-pod
+spec:
+  containers:
+    - name: app
+      image: registry.k8s.io/pause:3.10
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {memory: 32Mi}

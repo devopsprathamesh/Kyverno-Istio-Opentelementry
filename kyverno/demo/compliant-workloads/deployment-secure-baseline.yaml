@@ -1,0 +1,47 @@
+# COMPLIANT reference resource — Deployment counterpart to
+# pod-secure-baseline.yaml, additionally demonstrating health probes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compliant-secure-baseline
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/name: compliant-secure-baseline
+    app.kubernetes.io/part-of: kyverno-learning-lab
+    owner: platform-team
+    environment: lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: compliant-secure-baseline}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: compliant-secure-baseline
+        app.kubernetes.io/part-of: kyverno-learning-lab
+        owner: platform-team
+        environment: lab
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 32Mi}
+          startupProbe:
+            exec: {command: ["true"]}
+            failureThreshold: 3
+          livenessProbe:
+            exec: {command: ["true"]}
+            periodSeconds: 20
+          readinessProbe:
+            exec: {command: ["true"]}
+            periodSeconds: 10

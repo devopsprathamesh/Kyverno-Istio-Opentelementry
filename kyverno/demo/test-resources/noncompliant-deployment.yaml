@@ -1,0 +1,23 @@
+# Generic offline-test fixture (Deployment form) — missing resource
+# limits on both an initContainer and a container.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fixture-noncompliant-deployment
+  namespace: kyverno-demo
+  labels:
+    lab-marker: intentionally-insecure
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: fixture-noncompliant-deployment}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: fixture-noncompliant-deployment}
+    spec:
+      initContainers:
+        - name: init
+          image: registry.k8s.io/pause:3.10
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kyverno-demo
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+    environment: lab
+    owner: platform-team
+    # Pod Security Admission baseline — deliberately NOT "restricted",
+    # since this namespace intentionally hosts insecure-workloads/ for
+    # policy labs to reject at the Kyverno layer. See
+    # docs/12-security-and-governance.md "Kyverno vs. Pod Security
+    # Admission" for why both layers exist and what each is responsible
+    # for. PSA "privileged" here means PSA itself imposes no restriction
+    # in this namespace — Kyverno policies are what does the rejecting
+    # in the labs, which is the point being taught.
+    pod-security.kubernetes.io/enforce: privileged

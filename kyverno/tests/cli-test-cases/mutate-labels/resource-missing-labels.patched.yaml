@@ -1,0 +1,21 @@
+# Expected post-mutation state for resource-missing-labels.yaml, per
+# ../../policies/mutate/add-default-labels.yaml's `+()` addIfNotPresent
+# anchors — app.kubernetes.io/name is left untouched (it was already
+# set); environment/owner/app.kubernetes.io/part-of are added.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mutate-fixture-pod
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/name: mutate-fixture-pod
+    app.kubernetes.io/part-of: kyverno-learning-lab
+    environment: lab
+    owner: platform-team
+spec:
+  containers:
+    - name: app
+      image: registry.k8s.io/pause:3.10
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {memory: 32Mi}

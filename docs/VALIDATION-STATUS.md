@@ -6,7 +6,7 @@ This document is the source of truth for what has actually been built and valida
 | --- | --- | --- | --- | --- |
 | Phase 1 — Repository architecture and governance | Complete | Documentation existence check, placeholder-token scan, secret-file scan, nested-`.git` scan, `git diff --check`, relative markdown-link resolution check, manual Mermaid syntax review | Pass (see below) | Mermaid diagrams were not tool-validated — no `node`/`npx`/Mermaid CLI was available in this environment; only manual syntax review was performed |
 | Phase 2 — Base VirtualBox and Vagrant Kubernetes environment | **Partial** — automation built and statically validated; live-cluster runtime validation not performed | File existence, `bash -n` + ShellCheck (if available), `ruby -c`/`vagrant validate`, YAML template structural checks, `make help` review, markdown-link check, git-safety checks; host tool presence (`VBoxManage`/`vagrant --version`) confirmed directly | Static suite: pass (see below). Runtime (VM boot, kubeadm, Cilium, storage, network tests): **not run**, by explicit user choice this session | No live cluster exists yet. See Phase 2 detail below for the exact commands to complete runtime validation, and known/deferred risks. |
-| Phase 3 — Independent Kyverno lab | Not started | — | — | — |
+| Phase 3 — Independent Kyverno lab | **Partial** — automation and documentation built and statically validated; live-cluster runtime validation not performed | File existence, `bash -n` + ShellCheck, YAML structural validation, `helm lint` (best-effort, network-dependent), Kyverno CLI `kyverno test` offline policy tests, policy-quality checks (API versions, duplicate names, descriptions, wildcards, image-tag hygiene), markdown-link check, `make help`, git-safety checks | Static suite: see Phase 3 detail below for exact pass/fail counts. Runtime (install, functional probes, all `tests/*-policy-tests.sh`): **not run** — no live cluster existed during this phase | No live cluster exists yet. See Phase 3 detail below for exact commands to complete runtime validation. |
 | Phase 4 — Independent Istio lab | Not started | — | — | — |
 | Phase 5 — Independent observability lab | Not started | — | — | — |
 | Phase 6 — All-tools integrated lab | Not started | — | — | — |
@@ -200,8 +200,105 @@ kubectl get nodes -o wide
 - Everything under "Runtime validation" above — requires the live-cluster run the user deferred.
 - A few version/config details are intentionally resolved dynamically at install time rather than pinned statically (documented, not hidden): the exact `containerd.io` Docker-apt-repo package revision suffix, and the Hubble CLI version (no stable, independently pinnable release cadence relative to the Cilium chart — see `docs/VERSIONS.md` Phase 2 addendum).
 
-### Next phase
+### Next phase (as of Phase 2)
 
 ```text
 Phase 3: Independent Kyverno hands-on lab
+```
+
+## Phase 3 detail
+
+**Scope note:** no live Kubernetes cluster existed at any point during this phase (`VBoxManage list vms` and `vagrant global-status` both empty, no `.generated/kubeconfig`, `kubectl` not installed on the host) — this matches the phase's own "no live cluster available" execution policy exactly: build the complete implementation, perform all possible static validation, do not auto-run `vagrant up`, do not claim runtime success, mark runtime validation as pending with exact follow-up commands.
+
+### Files created
+
+110 files under `kyverno/` (22 shell scripts, 48 YAML files, 35 markdown files, plus `Makefile`/`.env.example`): `README.md`, `Makefile`, `.env.example`, `config/{versions.env, namespaces.env, lab-settings.env}`, 15 `docs/*.md` concept documents (12 Mermaid diagrams total), `install/{namespace.yaml, values-minimum.yaml, values-recommended.yaml, optional/policy-reporter-values.yaml}`, `demo/` (namespace + applications + 9 insecure-workload fixtures + 3 compliant-workload fixtures + 7 test-resource fixtures), `policies/` (17 policies across all 9 required subdirectories), 18 `labs/lab-*.md` walkthroughs, `scripts/lib/{common.sh, logging.sh, kubernetes.sh}` + 11 orchestration scripts, `tests/` (`static-validation.sh`, `installation-test.sh`, 6 runtime policy-type test scripts, `expected-results.md`, and `cli-test-cases/` — 4 offline Kyverno CLI test suites, one per subdirectory as `kyverno test` requires).
+
+### Files modified
+
+`README.md` (root, status line + module table row), `PROJECT-IMPLEMENTATION-PLAN.md` (Phase 3 checkboxes), `docs/VERSIONS.md` (Kyverno "Phase 3 addendum" + a new uncertain-compatibility item on the Helm chart's exact values schema), `docs/DEPENDENCIES.md` (§2 Kyverno reconciliation note), `docs/DECISIONS.md` (+ADR-013 through ADR-018).
+
+### Lab implementation summary
+
+Installation via pinned Helm chart (3.8.2 / app v1.18.2) with minimum/recommended profiles (replica counts, PDB, anti-affinity on the admission controller only — the one component in the synchronous request path). 17 policies covering every required type (audit, validate, mutate, generate, cleanup, verify-images, exceptions, advanced/context/foreach/precondition, production-examples), each cross-referenced to a lab and, where offline-testable, a `kyverno test` fixture. Demo workloads: one intentionally-incomplete "real" application plus 9 individually-labeled insecure fixtures and 3 compliant references. 18 sequential labs from prerequisites through production readiness. Runtime test scripts for every policy type, each namespace-isolated, labeled, and self-cleaning via `trap`. Report tooling via `kubectl`/`jq`, no Grafana/Prometheus dependency. Troubleshooting: a 27-row symptom table plus a hands-on lab (lab-16) that deliberately triggers several of the failure modes.
+
+### Policy inventory
+
+See `kyverno/README.md`'s own "Policy inventory" table (17 rows) for the authoritative, current list — not duplicated here to avoid drift between two copies.
+
+### Static validation
+
+Commands executed:
+
+```bash
+# Kyverno CLI install (disclosed in the approved plan before execution)
+curl -fsSL -o checksums.txt https://github.com/kyverno/kyverno/releases/download/v1.18.2/checksums.txt
+curl -fsSL -o kyverno-cli_v1.18.2_linux_x86_64.tar.gz https://github.com/kyverno/kyverno/releases/download/v1.18.2/kyverno-cli_v1.18.2_linux_x86_64.tar.gz
+sha256sum -c <(grep kyverno-cli_v1.18.2_linux_x86_64.tar.gz checksums.txt)   # OK
+install -m 0755 kyverno ~/.local/bin/kyverno   # user-local, no sudo
+
+find scripts tests -name '*.sh' -exec chmod +x {} \;
+bash tests/static-validation.sh
+kyverno test tests/cli-test-cases/
+make help
+git diff --check; git status --short istio/ opentelemetry-prometheus-grafana-jaeger-loki/ all-tools-integrated-lab/ auto-setup-default-kube-env/
+python3 <repo-wide relative-markdown-link checker — 141 links across 55 files>
+find . -mindepth 2 -name ".git"; find . -type f \( -iname "*kubeconfig*" -o -iname "*.key" -o ... \)
+```
+
+Results:
+
+| Check | Result |
+| --- | --- |
+| `bash -n`, 22 scripts | Pass — 22/22 |
+| ShellCheck (severity: warning+, SC1091 excluded — same documented rationale as Phase 2), 22 scripts | Pass — 22/22 |
+| YAML structural validation, 48 files | Pass — 48/48 |
+| `helm lint` | **Skipped, documented** — `helm` is not installed on this host and was not installed in this session (only the Kyverno CLI download was disclosed/approved in the plan; installing a second binary would have needed a fresh disclosure, so this was deliberately left as a documented skip rather than done without asking) |
+| Kyverno CLI offline policy tests (`kyverno test tests/cli-test-cases/`) | **Pass — 10/10 test assertions**, across 4 suites (require-labels, resource-limits, privileged-containers, mutate-labels) |
+| Policy quality checks (API versions, duplicate names, descriptions, messages) | Pass, after fixing one real gap found: `policies/exceptions/allow-demo-hostpath-exception.yaml` was missing a `policies.kyverno.io/description` annotation — added |
+| Unsafe wildcard match check | Pass — no policy matches `kinds: ["*"]` |
+| Image-tag hygiene check | Pass, after fixing one real inconsistency found: `demo/test-resources/noncompliant-pod.yaml` and `noncompliant-deployment.yaml` used a different marker label (`lab-marker: intentionally-noncompliant`) than every other intentionally-bad fixture (`intentionally-insecure`), so the hygiene check's exemption logic didn't recognize them — unified the label rather than special-casing the check |
+| Markdown link check (kyverno/ only, then repo-wide) | Pass — 25/25 within `kyverno/`, 141/141 repository-wide |
+| `make help` | Pass — lists 23 targets |
+| Secret-like file scan | Pass — the one filename match (`export-kubeconfig.sh`, a script, not a credential) is the same pre-existing, confirmed-benign match from Phase 2 |
+| Nested `.git` scan | Pass — none found |
+| Placeholder token scan | Pass — only self-referential matches inside this document's own description of the check |
+| `git diff --check` | Pass — clean, exit 0 |
+| `istio/`, `opentelemetry-prometheus-grafana-jaeger-loki/`, `all-tools-integrated-lab/`, `auto-setup-default-kube-env/` unmodified | Pass — `git status --short` scoped to each returns empty |
+
+**A genuine bug class found and fixed via real execution, not just review:** two `kyverno-test.yaml` schema mistakes (using `resource:`/`patchedResource:` instead of the actual current schema's `resources:` (list) / `patchedResources:`, and Kyverno's requirement that `kyverno test` scan for folders each containing a file literally named `kyverno-test.yaml`, not arbitrarily-named files in one flat directory) — found only because the CLI was actually run, not assumed correct from documentation memory. Fixed by restructuring `tests/cli-test-cases/` into one subdirectory per test case and correcting the field names against a real, current example fetched directly from Kyverno's own `kyverno/policies` repository. This is the same category of lesson as Phase 2's SIGPIPE-under-pipefail discovery: static/textual correctness and actually-running-it correctness are not the same thing, and this phase's real CLI execution caught what a syntax-only review would have missed.
+
+**Real, positive semantic confirmation, not just syntax validation:** all 10 `kyverno test` assertions passed on the first fully-correct run, confirming the actual JMESPath `pattern`/`deny.conditions`/mutation logic in `require-labels-enforce`, `require-resource-limits`, `restrict-privileged-containers` (all 4 of its rules), and `add-default-labels` produces exactly the pass/fail/mutation outcomes documented in the corresponding labs and docs — not merely that the YAML parses. This run also surfaced Kyverno's "autogen" behavior in practice (a `kinds: ["Pod"]`-only policy correctly governing a Deployment fixture via an auto-generated `autogen-validate-resources` rule), which has been documented in `kyverno/docs/04-policy-anatomy.md` as a result.
+
+### Runtime validation
+
+**Not performed — no live cluster existed at any point during this phase**, not a scope choice made mid-session (contrast with Phase 2, where the user actively chose static-only despite a capable host). Not run: `make verify-cluster`, `make install`, `make validate-installation`, `make deploy-demo`, `make test-runtime`, and every `tests/*-policy-tests.sh` runtime script.
+
+**To complete runtime validation:**
+
+```bash
+cd auto-setup-default-kube-env
+make prerequisites && make setup LAB_PROFILE=recommended && make validate
+export KUBECONFIG="$(pwd)/.generated/kubeconfig"
+
+cd ../kyverno
+make prerequisites
+make verify-cluster
+make install LAB_PROFILE=recommended
+make validate-installation
+make deploy-demo
+make test-runtime
+```
+
+### Items not testable in this phase
+
+- Everything under "Runtime validation" above.
+- `helm lint` against the actual pinned chart (documented skip, not a silent omission — see the static-validation table above).
+- Real Sigstore/Rekor keyless signature verification for `policies/verify-images/verify-image-signature.yaml` (requires both a live cluster and outbound network access to `rekor.sigstore.dev`) — `kyverno/docs/08-image-verification.md` and `kyverno/tests/image-verification-tests.sh` both document this limitation explicitly rather than assuming it works.
+- A real 1-hour-aged `CleanupPolicy` deletion cycle (`kyverno/tests/cleanup-policy-tests.sh` validates readiness and selector scoping only, by design — see that script's own note).
+
+### Next phase
+
+```text
+Phase 4: Independent Istio hands-on lab
 ```

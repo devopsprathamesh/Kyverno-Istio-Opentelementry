@@ -1,0 +1,19 @@
+# COMPLIANT reference resource — ClusterIP Service, contrasted with
+# demo/insecure-workloads/service-forbidden-type.yaml's LoadBalancer.
+apiVersion: v1
+kind: Service
+metadata:
+  name: compliant-clusterip
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/name: compliant-clusterip
+    app.kubernetes.io/part-of: kyverno-learning-lab
+    owner: platform-team
+    environment: lab
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: demo-web-app
+  ports:
+    - port: 80
+      targetPort: 80

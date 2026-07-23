@@ -1,0 +1,37 @@
+# Optional Policy Reporter install values (chart 3.8.1 / app 3.8.1 —
+# see ../../config/versions.env). NOT installed by default — this
+# independent lab does not require Policy Reporter, a UI, or any
+# observability stack (see docs/DECISIONS.md and this repo's root
+# docs/ARCHITECTURE.md separation between platform/tool phases). This
+# file exists for learners who want the extra PolicyReport visualization
+# layer; enable via config/lab-settings.env's ENABLE_POLICY_REPORTER=true
+# plus a manual `helm install` (there is no default Makefile target that
+# installs this automatically, by design — see README.md "Reports").
+#
+# Kept lightweight: UI enabled, no external target integrations (Slack/
+# Loki/Elasticsearch/etc.) configured, no persistent storage beyond the
+# PolicyReport/ClusterPolicyReport CRDs Kyverno itself already writes to.
+
+ui:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+# No target integrations configured — this stays a pure in-cluster
+# PolicyReport viewer, not a channel to external systems.
+target: {}
+
+kyvernoPlugin:
+  enabled: true

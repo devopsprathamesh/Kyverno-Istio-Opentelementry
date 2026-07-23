@@ -1,0 +1,40 @@
+# COMPLIANT reference resource — demonstrates every corrected pattern
+# from demo/insecure-workloads/ in one place: required labels, resource
+# requests/limits, non-root execution, read-only root filesystem,
+# dropped capabilities, seccomp profile, approved registry, pinned
+# image tag (digest-free but exact tag — see docs/04-policy-anatomy.md
+# on why exact-tag pinning, not digest pinning, is this lab's baseline),
+# and a safe (emptyDir) volume instead of hostPath.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: compliant-secure-baseline
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/name: compliant-secure-baseline
+    app.kubernetes.io/part-of: kyverno-learning-lab
+    owner: platform-team
+    environment: lab
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: app
+      image: registry.k8s.io/pause:3.10
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {memory: 32Mi}
+      volumeMounts:
+        - name: scratch
+          mountPath: /tmp
+  volumes:
+    - name: scratch
+      emptyDir: {}

@@ -1,0 +1,50 @@
+# Lab: labs/lab-14-context-and-api-calls.md
+#
+# Uses an in-cluster Kubernetes API call (context.apiCall) — never an
+# external/internet endpoint — to count existing Deployments in the
+# target namespace and cap new Deployment creation once a limit is
+# reached. Demonstrates that policy decisions can depend on live
+# cluster state, not just the incoming request object.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: limit-deployments-per-namespace
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+  annotations:
+    policies.kyverno.io/title: Limit Deployments Per Namespace (API Call Context)
+    policies.kyverno.io/category: Advanced, Lab
+    policies.kyverno.io/severity: low
+    policies.kyverno.io/subject: Deployment
+    policies.kyverno.io/description: >-
+      Rejects a new Deployment if the target namespace already has 20
+      or more. The count comes from a live, in-cluster API call
+      (context.apiCall), not a hardcoded or externally-fetched value —
+      see labs/lab-14-context-and-api-calls.md "Kubernetes API call
+      context".
+spec:
+  validationFailureAction: Audit
+  background: false
+  rules:
+    - name: check-deployment-count
+      match:
+        any:
+          - resources:
+              kinds: ["Deployment"]
+              operations: ["CREATE"]
+      context:
+        - name: existingDeployments
+          apiCall:
+            urlPath: "/apis/apps/v1/namespaces/{{request.namespace}}/deployments"
+            jmesPath: "items[] | length(@)"
+      validate:
+        message: >-
+          Namespace "{{request.namespace}}" already has
+          {{existingDeployments}} Deployment(s), at or above this lab's
+          demo limit of 20. See labs/lab-14-context-and-api-calls.md.
+        deny:
+          conditions:
+            all:
+              - key: "{{ existingDeployments }}"
+                operator: GreaterThanOrEquals
+                value: 20

@@ -1,0 +1,13 @@
+# Context data for
+# ../../policies/advanced/configmap-context-example.yaml — applied by
+# labs/lab-14-context-and-api-calls.md before that policy's context
+# lookup will resolve.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kyverno-lab-approved-environments
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+data:
+  approvedList: "lab,staging,production"

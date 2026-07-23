@@ -1,0 +1,24 @@
+# Offline Kyverno CLI test manifest — run via `kyverno test tests/cli-test-cases/`.
+# No live cluster required. See docs/DECISIONS.md ADR-015.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: require-labels-test
+policies:
+  - ../../../policies/validate/require-labels-enforce.yaml
+resources:
+  - ../../../demo/test-resources/compliant-pod.yaml
+  - ../../../demo/test-resources/noncompliant-pod.yaml
+results:
+  - policy: require-labels-enforce
+    rule: check-required-labels
+    kind: Pod
+    resources:
+      - kyverno-demo/fixture-compliant-pod
+    result: pass
+  - policy: require-labels-enforce
+    rule: check-required-labels
+    kind: Pod
+    resources:
+      - kyverno-demo/fixture-noncompliant-pod
+    result: fail

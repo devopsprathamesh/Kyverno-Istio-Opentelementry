@@ -1,0 +1,49 @@
+# Lab: labs/lab-17-production-readiness.md
+# Matches: demo/insecure-workloads/service-forbidden-type.yaml
+#
+# A realistic platform-engineering rule: LoadBalancer Services are
+# restricted to an explicit allowlist of namespaces that have gone
+# through cost/network review (this lab's cluster has no cloud LB
+# controller anyway, so any LoadBalancer Service here would sit
+# perpetually <pending> — this policy also prevents that confusing
+# state).
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: deny-loadbalancer-services
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+  annotations:
+    policies.kyverno.io/title: Restrict LoadBalancer Services
+    policies.kyverno.io/category: Production, Lab
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Service
+    policies.kyverno.io/description: >-
+      Rejects type:LoadBalancer Services outside an explicit allowlist
+      of reviewed namespaces (empty by default in this lab — see
+      labs/lab-17-production-readiness.md).
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: restrict-loadbalancer-type
+      match:
+        any:
+          - resources:
+              kinds: ["Service"]
+      exclude:
+        any:
+          - resources:
+              # No namespace is pre-approved by default in this lab —
+              # add one here only after an explicit, reviewed change.
+              namespaces: []
+      validate:
+        message: >-
+          type: LoadBalancer Services are not permitted in this
+          namespace. This cluster also has no cloud load-balancer
+          controller, so a LoadBalancer Service here would sit
+          perpetually <pending> regardless. Use ClusterIP (with
+          port-forward for local access) or NodePort instead.
+        pattern:
+          spec:
+            type: "!LoadBalancer"

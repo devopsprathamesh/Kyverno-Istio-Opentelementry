@@ -1,0 +1,49 @@
+# Lab: labs/lab-10-policy-exceptions.md
+# Used by: scripts/validate-installation.sh's functional probe (dry-run only).
+#
+# Scoped as narrowly as Kyverno allows: ONE named resource
+# (demo-approved-hostpath-reader), in ONE namespace (kyverno-demo), for
+# ONE specific rule of ONE specific policy (restrict-privileged-
+# containers's disallow-hostpath-volumes rule only — every OTHER rule
+# in that policy, and every other policy, still applies to this Pod).
+#
+# Kyverno's PolicyException CRD has no built-in expiration/TTL field —
+# the "expires"/"ticket" annotations below are a DOCUMENTED CONVENTION
+# this lab uses, not something Kyverno enforces itself. See
+# docs/DECISIONS.md ADR-016 and labs/lab-10-policy-exceptions.md
+# "Expiration process" for why that distinction matters and how a real
+# platform team would enforce it (a scheduled job or GitOps CI check
+# that fails a PR if `policy-exceptions.kyverno.io/expires` is in the
+# past — not built into Kyverno).
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: allow-demo-hostpath-exception
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+  annotations:
+    policies.kyverno.io/title: Narrow hostPath Exception for One Demo Resource
+    policies.kyverno.io/description: >-
+      Exempts exactly one named Pod (demo-approved-hostpath-reader) in
+      kyverno-demo from restrict-privileged-containers's
+      disallow-hostpath-volumes rule only — every other rule of that
+      policy, and every other policy, still applies. See
+      docs/09-policy-exceptions.md and docs/DECISIONS.md ADR-016.
+    policy-exceptions.kyverno.io/reason: >-
+      Lab demonstration of PolicyException scoping — this exception
+      exists solely to teach the mechanism.
+    policy-exceptions.kyverno.io/approved-by: platform-team
+    policy-exceptions.kyverno.io/expires: "2027-01-01"
+    policy-exceptions.kyverno.io/ticket: "LAB-EXAMPLE-0"
+spec:
+  exceptions:
+    - policyName: restrict-privileged-containers
+      ruleNames:
+        - disallow-hostpath-volumes
+  match:
+    any:
+      - resources:
+          kinds: ["Pod"]
+          names: ["demo-approved-hostpath-reader"]
+          namespaces: ["kyverno-demo"]

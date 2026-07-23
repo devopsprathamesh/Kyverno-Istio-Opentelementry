@@ -1,0 +1,161 @@
+# Lab: labs/lab-15-jmespath-and-preconditions.md
+#
+# One rule per precondition dimension called out in that lab: operation
+# type, namespace, image registry, replica count, label presence, and
+# resource request values. Preconditions are evaluated BEFORE the
+# validate/mutate/generate action — a rule whose preconditions don't
+# match is skipped entirely (no report entry, no denial), which is
+# different from a validate rule that runs and fails. See
+# labs/lab-15-jmespath-and-preconditions.md "Evaluation order".
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: precondition-examples
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+  annotations:
+    policies.kyverno.io/title: Precondition and JMESPath Examples
+    policies.kyverno.io/category: Advanced, Lab
+    policies.kyverno.io/severity: low
+    policies.kyverno.io/subject: Deployment
+    policies.kyverno.io/description: >-
+      Six rules, each gated by a different precondition dimension, to
+      teach how `preconditions` narrows when a rule's action actually
+      runs, independent of `match`/`exclude`.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    # 1. Operation type — only evaluate on CREATE, never UPDATE/DELETE.
+    - name: only-on-create
+      match:
+        any:
+          - resources:
+              kinds: ["Deployment"]
+      preconditions:
+        all:
+          - key: "{{ request.operation }}"
+            operator: Equals
+            value: "CREATE"
+      validate:
+        message: "This rule only ever runs on CREATE — informational marker rule."
+        pattern:
+          metadata:
+            name: "?*"
+
+    # 2. Namespace — only apply inside kyverno-demo.
+    - name: only-in-demo-namespace
+      match:
+        any:
+          - resources:
+              kinds: ["Deployment"]
+      preconditions:
+        all:
+          - key: "{{ request.namespace }}"
+            operator: Equals
+            value: "kyverno-demo"
+      validate:
+        message: "Deployments in kyverno-demo must set app.kubernetes.io/name."
+        pattern:
+          metadata:
+            labels:
+              app.kubernetes.io/name: "?*"
+
+    # 3. Image registry — only check replica count for images NOT from
+    #    the approved registry set (a deliberately contrived pairing,
+    #    purely to demonstrate combining two different JMESPath lookups
+    #    in one precondition).
+    - name: unapproved-registry-single-replica-only
+      match:
+        any:
+          - resources:
+              kinds: ["Deployment"]
+      preconditions:
+        all:
+          - key: "{{ request.object.spec.template.spec.containers[0].image }}"
+            operator: AnyNotIn
+            value:
+              - "registry.k8s.io/*"
+              - "ghcr.io/kyverno/*"
+              - "docker.io/library/*"
+      validate:
+        message: >-
+          Deployments using an unapproved-registry image must run with
+          exactly 1 replica in this lab (reduces blast radius while
+          under review).
+        pattern:
+          spec:
+            replicas: 1
+
+    # 4. Replica count — only enforce anti-affinity above 1 replica
+    #    (single-replica Deployments have nothing to spread).
+    - name: multi-replica-requires-antiaffinity
+      match:
+        any:
+          - resources:
+              kinds: ["Deployment"]
+      preconditions:
+        all:
+          - key: "{{ request.object.spec.replicas || `1` }}"
+            operator: GreaterThan
+            value: 1
+      validate:
+        message: "Deployments with more than 1 replica should set pod anti-affinity."
+        pattern:
+          spec:
+            template:
+              spec:
+                =(affinity):
+                  podAntiAffinity: "?*"
+
+    # 5. Label presence — only check owner label if app.kubernetes.io/part-of
+    #    is already this lab's own value (avoids flagging unrelated workloads).
+    - name: lab-owned-requires-owner-label
+      match:
+        any:
+          - resources:
+              kinds: ["Deployment"]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.labels.\"app.kubernetes.io/part-of\" || '' }}"
+            operator: Equals
+            value: "kyverno-learning-lab"
+      validate:
+        message: "Deployments labeled as part of this lab must also set an owner label."
+        pattern:
+          metadata:
+            labels:
+              owner: "?*"
+
+    # 6. Resource request values — foreach + precondition + a simple
+    #    equality check flagging one specific oversized value ("8Gi").
+    #    Kept as an equality check rather than a true greater-than
+    #    comparison deliberately: Kubernetes resource quantities ("8Gi",
+    #    "512Mi") are not numerically comparable as plain JMESPath
+    #    strings without a unit-aware conversion step, which is out of
+    #    scope for this JMESPath/precondition-focused lab — see
+    #    labs/lab-15-jmespath-and-preconditions.md for the caveat.
+    - name: flag-oversized-requests
+      match:
+        any:
+          - resources:
+              kinds: ["Deployment"]
+      validate:
+        message: >-
+          A container requests more memory than this lab's cluster can
+          reasonably schedule (see
+          ../../auto-setup-default-kube-env/docs/ARCHITECTURE.md
+          "Resource planning").
+        foreach:
+          - list: "request.object.spec.template.spec.containers[]"
+            preconditions:
+              all:
+                - key: "{{ element.resources.requests.memory || '0Mi' }}"
+                  operator: NotEquals
+                  value: "0Mi"
+            deny:
+              conditions:
+                all:
+                  - key: "{{ element.resources.requests.memory }}"
+                    operator: Equals
+                    value: "8Gi"

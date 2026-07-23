@@ -1,0 +1,28 @@
+# Generic offline-test fixture, referenced by `kyverno test` manifests
+# under ../../tests/. Not applied to a live cluster directly — this is
+# input to `kyverno apply -f <policy> -r <this file>` / `kyverno test`.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fixture-compliant-pod
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/name: fixture-compliant-pod
+    app.kubernetes.io/part-of: kyverno-learning-lab
+    owner: platform-team
+    environment: lab
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    seccompProfile: {type: RuntimeDefault}
+  containers:
+    - name: app
+      image: registry.k8s.io/pause:3.10
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: {drop: ["ALL"]}
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {memory: 32Mi}

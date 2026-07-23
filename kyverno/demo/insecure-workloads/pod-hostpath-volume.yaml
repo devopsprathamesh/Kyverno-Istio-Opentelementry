@@ -1,0 +1,27 @@
+# INTENTIONALLY INSECURE LAB RESOURCE — hostPath volume. Mounts a
+# harmless, non-sensitive host path read-only; never used to write to
+# or damage the host. Used in labs/lab-05-restrict-privileged-containers.md.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insecure-hostpath
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+    lab-marker: intentionally-insecure
+spec:
+  containers:
+    - name: app
+      image: registry.k8s.io/pause:3.10
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {memory: 32Mi}
+      volumeMounts:
+        - name: host-tmp
+          mountPath: /host-tmp
+          readOnly: true
+  volumes:
+    - name: host-tmp
+      hostPath:
+        path: /tmp
+        type: Directory

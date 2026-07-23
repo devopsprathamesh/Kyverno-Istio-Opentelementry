@@ -1,0 +1,20 @@
+# INTENTIONALLY INSECURE LAB RESOURCE — image pulled from a registry
+# outside this lab's approved list (registry.k8s.io, ghcr.io/kyverno,
+# docker.io/library — see policies/validate/restrict-image-registries.yaml).
+# Uses a real, lightweight, well-known public image so the pattern is
+# realistic without inventing a fake unreachable registry.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insecure-unapproved-registry
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+    lab-marker: intentionally-insecure
+spec:
+  containers:
+    - name: app
+      image: quay.io/prometheus/busybox:latest
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {memory: 32Mi}

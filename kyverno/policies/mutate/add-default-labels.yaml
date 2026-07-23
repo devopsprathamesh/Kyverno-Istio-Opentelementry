@@ -1,0 +1,41 @@
+# Lab: labs/lab-06-mutate-default-labels.md
+# Used by: scripts/validate-installation.sh's functional probe.
+#
+# Uses the `+()` "addIfNotPresent" anchor throughout — every field here
+# is only ever ADDED when missing, never overwritten when already set.
+# This is the single most important mutation-policy habit to teach: a
+# mutate policy that blindly overwrites existing values will fight
+# anyone who intentionally sets a different value, including this lab's
+# own compliant-workloads/ examples. See
+# labs/lab-07-mutate-security-context.md for the same principle applied
+# to securityContext.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: add-default-labels
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+  annotations:
+    policies.kyverno.io/title: Add Default Labels
+    policies.kyverno.io/category: Best Practices, Lab
+    policies.kyverno.io/severity: low
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Adds safe default metadata labels (environment, owner,
+      app.kubernetes.io/part-of) to Pods that don't already set them.
+      Never overwrites a value that's already present.
+spec:
+  background: false
+  rules:
+    - name: add-safe-default-labels
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      mutate:
+        patchStrategicMerge:
+          metadata:
+            labels:
+              +(environment): lab
+              +(owner): platform-team
+              +(app.kubernetes.io/part-of): kyverno-learning-lab

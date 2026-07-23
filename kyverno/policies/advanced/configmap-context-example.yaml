@@ -1,0 +1,54 @@
+# Lab: labs/lab-14-context-and-api-calls.md
+#
+# Loads an in-cluster ConfigMap as policy context and validates the
+# Pod's "environment" label against the ConfigMap's approved list —
+# demonstrates externalizing policy data (the approved-values list)
+# from policy logic, without any internet dependency (the ConfigMap
+# lives in this cluster).
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: validate-environment-against-configmap
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+  annotations:
+    policies.kyverno.io/title: Validate Environment Label Against a ConfigMap
+    policies.kyverno.io/category: Advanced, Lab
+    policies.kyverno.io/severity: low
+    policies.kyverno.io/subject: Pod, ConfigMap
+    policies.kyverno.io/description: >-
+      Looks up the approved "environment" label values from a ConfigMap
+      (config/lab-settings, applied by
+      labs/lab-14-context-and-api-calls.md) rather than hardcoding the
+      allowed list inside the policy itself.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: check-environment-value
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      context:
+        - name: approved-environments-cm
+          configMap:
+            name: kyverno-lab-approved-environments
+            namespace: kyverno-demo
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.labels.environment || '' }}"
+            operator: NotEquals
+            value: ""
+      validate:
+        message: >-
+          Label "environment: {{ request.object.metadata.labels.environment }}"
+          is not in the approved list from ConfigMap
+          kyverno-lab-approved-environments. See
+          labs/lab-14-context-and-api-calls.md.
+        deny:
+          conditions:
+            all:
+              - key: "{{ request.object.metadata.labels.environment }}"
+                operator: NotIn
+                value: "{{ split(approved-environments-cm.data.approvedList, ',') }}"

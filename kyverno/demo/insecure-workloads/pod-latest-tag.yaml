@@ -1,0 +1,18 @@
+# INTENTIONALLY INSECURE LAB RESOURCE — floating ":latest" tag. Used in
+# labs/lab-05-restrict-privileged-containers.md and
+# docs/production-examples policy discussion.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: insecure-latest-tag
+  namespace: kyverno-demo
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+    lab-marker: intentionally-insecure
+spec:
+  containers:
+    - name: app
+      image: nginx:latest
+      resources:
+        requests: {cpu: 10m, memory: 16Mi}
+        limits: {memory: 32Mi}

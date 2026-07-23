@@ -1,0 +1,40 @@
+# Lab: labs/lab-02-audit-vs-enforce.md, labs/lab-03-require-labels.md
+# Used by: scripts/validate-installation.sh's functional probe.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-labels-enforce
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+  annotations:
+    policies.kyverno.io/title: Require Labels (Enforce)
+    policies.kyverno.io/category: Best Practices, Lab
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Rejects Pods missing any of: app.kubernetes.io/name,
+      app.kubernetes.io/part-of, owner, environment. Enforce mode should
+      only follow a period running the audit-mode twin of this policy
+      and reviewing its PolicyReports — see docs/DECISIONS.md ADR-013.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: check-required-labels
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      validate:
+        message: >-
+          This Pod is missing one or more required labels. Every Pod in
+          this cluster must set: app.kubernetes.io/name,
+          app.kubernetes.io/part-of, owner, environment. Add them and
+          retry, or see labs/lab-03-require-labels.md.
+        pattern:
+          metadata:
+            labels:
+              app.kubernetes.io/name: "?*"
+              app.kubernetes.io/part-of: "?*"
+              owner: "?*"
+              environment: "?*"

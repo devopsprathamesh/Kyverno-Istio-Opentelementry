@@ -1,0 +1,49 @@
+# Lab: labs/lab-11-image-verification.md — STATIC/OFFLINE PATH
+#
+# Uses Sigstore keyless verification (Fulcio identity + Rekor transparency
+# log) against Kyverno's OWN published container images, which are
+# genuinely signed via GitHub Actions OIDC as part of Kyverno's release
+# pipeline — a real, publicly verifiable signed image, not a fabricated
+# example. This deliberately avoids embedding any static public-key PEM
+# block in this file: a hardcoded key you can't verify the provenance of
+# is worse than no example at all. See
+# labs/lab-11-image-verification.md for the optional Cosign RUNTIME path
+# (self-generated lab keys, gated behind ENABLE_COSIGN_RUNTIME_LAB) for
+# the static-key verification pattern instead.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image-signature
+  labels:
+    app.kubernetes.io/part-of: kyverno-learning-lab
+  annotations:
+    policies.kyverno.io/title: Verify Image Signature (Keyless, Kyverno's Own Images)
+    policies.kyverno.io/category: Supply Chain, Lab
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Requires images from ghcr.io/kyverno/* to carry a valid Sigstore
+      keyless signature issued via GitHub Actions OIDC. This policy only
+      matches ghcr.io/kyverno/* images — it does not affect any other
+      workload in this lab, since no other demo image is actually signed
+      this way.
+spec:
+  validationFailureAction: Audit
+  background: false
+  rules:
+    - name: verify-kyverno-images-keyless
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/kyverno/*"
+          mutateDigest: true
+          attestors:
+            - entries:
+                - keyless:
+                    subject: "https://github.com/kyverno/*"
+                    issuer: "https://token.actions.githubusercontent.com"
+                    rekor:
+                      url: https://rekor.sigstore.dev
