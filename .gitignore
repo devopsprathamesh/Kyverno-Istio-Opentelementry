@@ -1,0 +1,44 @@
+# This .gitignore is intentionally conservative: it excludes generated
+# artifacts, local tool state, and anything that can hold secrets or
+# machine-specific paths. It must never exclude declarative YAML, Helm
+# values, Grafana dashboards, documentation, or safe example configuration
+# (e.g. kubeconfig.example) — those are reviewable, reusable lab artifacts.
+
+# Vagrant
+.vagrant/
+**/.vagrant/
+
+# Generated files
+.generated/
+**/.generated/
+
+# Kubernetes access and secrets
+*kubeconfig*
+!kubeconfig.example
+*.key
+*.pem
+*.p12
+*.token
+
+# Local environment
+.env
+*.env.local
+
+# Application build output
+node_modules/
+target/
+dist/
+build/
+__pycache__/
+*.pyc
+
+# IDE and operating-system files
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Temporary files and logs
+*.log
+tmp/
+.cache/
