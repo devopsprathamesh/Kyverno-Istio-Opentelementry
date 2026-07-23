@@ -49,15 +49,18 @@ This is the authoritative phase list for this repository. Each phase is built, v
 **Validation requirements:** All three nodes reach `Ready`; `cilium status` reports healthy; `hubble observe` shows flow data; `kubectl` works from the host via the exported kubeconfig; `make destroy && make setup` reproduces the same result (idempotency/rebuild check).
 
 **Definition of done:**
-- [ ] Vagrantfile brings up `otel-control-plane` (192.168.56.10), `otel-worker-1` (192.168.56.11), `otel-worker-2` (192.168.56.12)
-- [ ] containerd + kubeadm bootstrap succeeds on the pinned Kubernetes version
-- [ ] Cilium + Hubble installed and validated per `docs/VERSIONS.md` pinned versions
-- [ ] Helm installed; local StorageClass available and validated with a test PVC
-- [ ] Host kubeconfig exported and working
-- [ ] `make validate`, `make status`, `make rebuild` all implemented and pass
-- [ ] No Kyverno/Istio/observability component present on this cluster
+- [x] Vagrantfile defines `otel-control-plane` (192.168.56.10), `otel-worker-1` (192.168.56.11), `otel-worker-2` (192.168.56.12) with explicit ordered provisioning (not implemented: actually booted — see below)
+- [x] containerd + kubeadm bootstrap automation written, targeting the pinned Kubernetes version (1.35.6) — not yet run against a live VM
+- [x] Cilium + Hubble install automation written per `docs/VERSIONS.md` pinned versions — not yet validated against a live cluster
+- [x] Helm install automation written; local StorageClass (local-path-provisioner) install + PVC smoke-test automation written — not yet validated against a live cluster
+- [x] Host kubeconfig export automation written — not yet validated against a live cluster
+- [x] `make validate`, `make status`, `make rebuild` implemented — not yet run against a live cluster
+- [x] No Kyverno/Istio/observability component present anywhere in this module's automation
+- [ ] **Live cluster actually provisioned and all of the above validated end to end** — deliberately not done in this session; the user chose "build and statically validate only" for this pass (see `docs/VALIDATION-STATUS.md` Phase 2 detail for the exact reason and the exact commands to complete this)
 
-**Known risks:** Kernel/eBPF feature availability on the chosen Ubuntu Server LTS image; static private-IP stability across VM restarts; resource sizing (minimum vs. recommended profile) may need real-world adjustment.
+**Status: automation complete and statically validated; live-cluster runtime validation intentionally deferred to the user.** See `docs/VALIDATION-STATUS.md` for the full breakdown of what was and wasn't checked.
+
+**Known risks:** Kernel/eBPF feature availability on the chosen Ubuntu Server LTS image; static private-IP stability across VM restarts; resource sizing (minimum vs. recommended profile) may need real-world adjustment; this host previously had an unrelated Vagrant/VirtualBox environment claiming the same `192.168.56.10-.12` IPs (resolved by the user destroying it — see `docs/DEPENDENCIES.md`), and `scripts/host/check-prerequisites.sh` now guards against this class of conflict generally; several pinned package/tag details (containerd.io's exact Docker-apt-repo revision suffix, the Hubble CLI's `stable.txt`-resolved version) are resolved dynamically at install time rather than hardcoded, since they were not reliably determinable through static research alone.
 
 **Out of scope:** Any application-layer tool installation (explicitly prohibited from this module's automation, per `docs/ARCHITECTURE.md` §9).
 

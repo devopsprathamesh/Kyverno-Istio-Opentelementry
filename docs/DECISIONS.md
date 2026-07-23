@@ -178,3 +178,40 @@ Each ADR follows: Status, Context, Decision, Alternatives considered, Consequenc
 **Risks:** Pinned versions will fall behind upstream security patches over time; the repository must periodically revisit `VERSIONS.md` rather than treating it as a one-time artifact.
 
 **Validation requirements:** Any install script or Helm command that does not pass an explicit version is a governance violation (see [`REPOSITORY-GOVERNANCE.md`](REPOSITORY-GOVERNANCE.md)) and must be corrected before merge.
+
+## ADR-011: Cilium cluster-pool IPAM without a kubeadm `podSubnet`
+
+**Status:** Accepted
+
+**Context:** `kubeadm init` supports a `--pod-network-cidr`/`ClusterConfiguration.networking.podSubnet` flag that some CNIs (Flannel, Calico in certain modes) consume to have kube-controller-manager allocate per-node CIDRs (`--allocate-node-cidrs`). Cilium does not need this: its default `cluster-pool` IPAM mode has its own operator-driven allocator that assigns per-node pod CIDRs directly, independent of kube-controller-manager.
+
+**Decision:** Do not set `podSubnet` in `auto-setup-default-kube-env/config/kubeadm-config.yaml.tpl`. Instead, configure Cilium's `ipam.mode: cluster-pool` explicitly in `config/cilium-values.yaml.tpl`, with the pool CIDR and per-node mask size defined once in `config/cluster.env` (`CILIUM_CLUSTER_POOL_CIDR`, `CILIUM_CLUSTER_POOL_MASK_SIZE`).
+
+**Alternatives considered:**
+- Set `podSubnet` anyway "for clarity/consistency with other CNI tutorials" — rejected: it would be silently ignored by Cilium's cluster-pool IPAM, creating a config value that looks load-bearing but isn't, which is worse for a teaching-oriented repository than omitting it with an explanation.
+- Use Cilium's `kubernetes` IPAM mode (which *does* consume kube-controller-manager's node-CIDR allocation) instead of `cluster-pool` — rejected: `cluster-pool` is Cilium's own documented default and recommended mode outside of specific migration scenarios; there was no reason to deviate from it just to make `podSubnet` meaningful.
+
+**Consequences:** Anyone reading `kubeadm-config.yaml.tpl` who expects to find a `podSubnet` (as in most generic kubeadm tutorials) needs this ADR or the template's own comment to understand why it's absent — addressed by an explicit comment in the template itself pointing here.
+
+**Risks:** Low — this is Cilium's own documented default behavior, not a workaround.
+
+**Validation requirements:** Confirm pod IPs assigned cluster-wide fall within `CILIUM_CLUSTER_POOL_CIDR` and that each node's allocated per-node CIDR is exactly `/${CILIUM_CLUSTER_POOL_MASK_SIZE}` in size, once the cluster is actually provisioned.
+
+## ADR-012: Rancher local-path-provisioner as the lab StorageClass
+
+**Status:** Accepted
+
+**Context:** `auto-setup-default-kube-env` needs a dynamic `StorageClass` so downstream labs (Prometheus/Loki/Jaeger storage, demo workload PVCs) don't each have to solve storage provisioning themselves, but this is a disposable, single-host lab, not a platform that needs to demonstrate production-grade storage architecture.
+
+**Decision:** Install [Rancher local-path-provisioner](https://github.com/rancher/local-path-provisioner) as the sole storage provisioner, exposed as the `local-path` StorageClass and set as the cluster default.
+
+**Alternatives considered:**
+- Longhorn — rejected: adds real operational weight (its own controller/manager/engine pods, replication configuration, a whole additional learning surface) that this tool-neutral base-platform module has no business introducing, especially given this repository already has five other tools' worth of learning surface ahead of it.
+- Raw `hostPath` volumes, no provisioner at all — rejected: no dynamic provisioning means every downstream lab would need to hand-author a `PersistentVolume` per `PersistentVolumeClaim`, pushing storage-plumbing work onto every module instead of solving it once here.
+- A cloud-provider-style CSI driver — not applicable: this is a local VirtualBox lab with no cloud storage API to back one.
+
+**Consequences:** Every downstream lab gets a working dynamic `StorageClass` "for free," at the cost of the explicit limitations documented in `auto-setup-default-kube-env/docs/STORAGE.md`: no HA, node-pinned data (a `PersistentVolume`'s data lives on whichever single node's disk it was first provisioned on), and total data loss if that node's VM is destroyed.
+
+**Risks:** A downstream lab that doesn't read `docs/STORAGE.md` first could be surprised by node-affinity-driven scheduling constraints on a StatefulSet using this storage. Documented explicitly to mitigate.
+
+**Validation requirements:** `auto-setup-default-kube-env/tests/storage-test.sh` — create PVC, create pod, write data, read data, restart pod, confirm persistence, clean up — must pass before this module's Definition of Done is met.

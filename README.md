@@ -8,7 +8,7 @@ This repository is written for engineers who are already fluent in Linux, Kubern
 
 > **This project is implemented phase by phase.** Each module is built, validated, and documented independently before the next phase begins. See [`PROJECT-IMPLEMENTATION-PLAN.md`](PROJECT-IMPLEMENTATION-PLAN.md) for the authoritative phase list and current progress, and [`docs/VALIDATION-STATUS.md`](docs/VALIDATION-STATUS.md) for what has actually been built and tested so far.
 >
-> **Current state: Phase 1 (repository architecture, governance, and planning) only.** No Kubernetes cluster, CNI, policy engine, mesh, or observability stack has been installed yet. Detailed installation guides live inside each module and are added as their phase is implemented.
+> **Current state: Phase 2 in progress (partial).** `auto-setup-default-kube-env/` — the VirtualBox/Vagrant/kubeadm/Cilium base platform — is fully built and statically validated (structure, syntax, idempotency logic), but has not yet been run against a live cluster in this repository; see [`docs/VALIDATION-STATUS.md`](docs/VALIDATION-STATUS.md) for exactly what that means and the commands to complete it. No Kyverno, Istio, or observability stack has been installed yet.
 
 ## High-level architecture
 
@@ -29,7 +29,7 @@ Full diagrams and reasoning are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md
 
 | Module | Owns | Status |
 | --- | --- | --- |
-| [`auto-setup-default-kube-env/`](auto-setup-default-kube-env/) | Reusable 3-node Kubernetes platform: VirtualBox/Vagrant VMs, containerd, kubeadm, Cilium CNI + Hubble, Helm, local StorageClass, kubeconfig export, validation and rebuild automation | Planned |
+| [`auto-setup-default-kube-env/`](auto-setup-default-kube-env/) | Reusable 3-node Kubernetes platform: VirtualBox/Vagrant VMs, containerd, kubeadm, Cilium CNI + Hubble, Helm, local StorageClass, kubeconfig export, validation and rebuild automation | Built, statically validated — live-cluster run pending |
 | [`kyverno/`](kyverno/) | Independent Kyverno policy-engine lab: validate/mutate/generate/cleanup/verifyImages policies, policy exceptions, policy reports, audit vs. enforce | Planned |
 | [`istio/`](istio/) | Independent Istio service-mesh lab (sidecar mode first): traffic management, mTLS, authorization, egress control | Planned |
 | [`opentelemetry-prometheus-grafana-jaeger-loki/`](opentelemetry-prometheus-grafana-jaeger-loki/) | Independent observability lab: OpenTelemetry SDK/Collector/Operator, metrics → Prometheus, traces → Jaeger, logs → Loki via the `filelog` receiver, all visualized in Grafana | Planned |

@@ -104,6 +104,12 @@ Running all three simultaneously in the integrated lab means a single pod create
 | Jaeger v2 (OTLP receiver) | 4317/4318 (shared OTLP ports on the Jaeger pod) | Trace ingestion |
 | Loki | 3100 | HTTP API / OTLP `/otlp` |
 
+## 15a. Host-only network conflicts with other local environments (encountered, not hypothetical)
+
+During Phase 2 (`auto-setup-default-kube-env`) implementation planning, the development host was found to already have an unrelated Vagrant/VirtualBox environment (`~/lab-setup-code/homelabsetup`, 7 VMs) statically claiming `192.168.56.10`, `.11`, and `.12` on `vboxnet0` — the exact three IPs this repository's base platform assigns to `otel-control-plane`/`otel-worker-1`/`otel-worker-2`. This was resolved by destroying the unrelated environment, but it is a real, encountered risk, not a theoretical one: **any two local VirtualBox host-only environments that pick overlapping static IPs on the same host will conflict**, VirtualBox does not prevent this at VM-creation time, and the failure mode (ARP flapping, unpredictable routing, intermittent connectivity) is confusing to diagnose after the fact rather than failing loudly up front.
+
+`auto-setup-default-kube-env/scripts/host/check-prerequisites.sh` mitigates this generally (not just for the specific incident encountered) by checking `VBoxManage list hostonlyifs`, `vagrant global-status`, and pinging each target IP before `make setup` proceeds — see `auto-setup-default-kube-env/docs/NETWORKING.md` "Host-only network conflicts" and `auto-setup-default-kube-env/docs/TROUBLESHOOTING.md` "Host-only IP conflict".
+
 ## 15. Namespace requirements
 
 See the namespace ownership table in [`ARCHITECTURE.md`](ARCHITECTURE.md#planned-namespace-strategy). No namespace is created in this phase.
@@ -117,3 +123,4 @@ See the namespace ownership table in [`ARCHITECTURE.md`](ARCHITECTURE.md#planned
 5. **Hubble metrics and OpenTelemetry metrics are separate paths into Prometheus** — do not assume they are unified without explicit integration work.
 6. **Loki requires the OTLP `/otlp` path, not the legacy push path**, and the `k8sattributes` processor must run before the Loki exporter in the Collector pipeline.
 7. **Independent labs must never be installed in a way that assumes another independent lab's CRDs or namespaces already exist** — only the integrated lab is allowed that assumption, and only for artifacts already validated independently.
+8. **Host-only network IP conflicts with other local VirtualBox/Vagrant environments are a real, encountered risk, not a theoretical one** (see §15a) — always run `check-prerequisites.sh` before `make setup` on a host that has any other local VirtualBox usage.

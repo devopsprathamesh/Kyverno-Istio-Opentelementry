@@ -1,0 +1,160 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+#
+# Reusable 3-node Kubernetes lab platform (see ../docs/ARCHITECTURE.md).
+# This Vagrantfile is intentionally thin: node topology, IPs, and
+# resource profiles all come from config/*.env (the single source of
+# truth shared with the shell scripts), and all provisioning logic lives
+# in scripts/guest/*.sh — this file only wires machines to scripts in
+# order.
+#
+# Direct `vagrant up` brings up all three machines using whatever order/
+# parallelism this Vagrant version's VirtualBox provider chooses (in
+# practice sequential, by declaration order, but not a documented
+# guarantee). Prefer `make setup` (scripts/host/setup-cluster.sh), which
+# calls `vagrant up <machine>` one at a time explicitly, so control-plane
+# initialization always completes before any worker attempts to join.
+
+require "pathname"
+
+MODULE_ROOT = Pathname.new(__dir__)
+
+# --- Load config/*.env (simple KEY=VALUE files, shared with bash scripts) ---
+def load_env_file(path)
+  vars = {}
+  File.readlines(path).each do |line|
+    line = line.strip
+    next if line.empty? || line.start_with?("#") || line.start_with?("export ")
+    next unless line.include?("=")
+
+    key, value = line.split("=", 2)
+    value = value.to_s.gsub(/^"|"$/, "").gsub(/^'|'$/, "")
+    # Skip lines with shell interpolation ("${...}") — cluster.env only
+    # (versions.env/profiles.env are plain literals); those interpolated
+    # values are not needed by the Vagrantfile.
+    next if value.include?("${")
+
+    vars[key] = value
+  end
+  vars
+end
+
+CLUSTER = load_env_file(MODULE_ROOT.join("config", "cluster.env"))
+PROFILES = load_env_file(MODULE_ROOT.join("config", "profiles.env"))
+VERSIONS = load_env_file(MODULE_ROOT.join("config", "versions.env"))
+
+VALID_PROFILES = PROFILES.fetch("VALID_LAB_PROFILES", "minimum recommended").split
+LAB_PROFILE = ENV.fetch("LAB_PROFILE", PROFILES.fetch("DEFAULT_LAB_PROFILE", "recommended"))
+
+unless VALID_PROFILES.include?(LAB_PROFILE)
+  abort "[FAIL] Invalid LAB_PROFILE='#{LAB_PROFILE}'. Valid values: #{VALID_PROFILES.join(', ')}"
+end
+
+profile_key = LAB_PROFILE.upcase
+
+# Per-node CPU/RAM: profile default, overridable per node via env vars
+# documented in .env.example / examples/profile-overrides.env.example.
+def resource_for(profiles, profile_key, node_key, kind, env_override)
+  return ENV[env_override].to_i if ENV[env_override] && !ENV[env_override].empty?
+
+  profiles.fetch("#{profile_key}_#{node_key}_#{kind}").to_i
+end
+
+NODES = [
+  {
+    name: CLUSTER.fetch("CONTROL_PLANE_NAME"),
+    ip: CLUSTER.fetch("CONTROL_PLANE_IP"),
+    role: "control-plane",
+    cpus: resource_for(PROFILES, profile_key, "CP", "CPUS", "CP_CPUS"),
+    memory: resource_for(PROFILES, profile_key, "CP", "MEMORY", "CP_MEMORY"),
+  },
+  {
+    name: CLUSTER.fetch("WORKER1_NAME"),
+    ip: CLUSTER.fetch("WORKER1_IP"),
+    role: "worker",
+    cpus: resource_for(PROFILES, profile_key, "WORKER1", "CPUS", "WORKER1_CPUS"),
+    memory: resource_for(PROFILES, profile_key, "WORKER1", "MEMORY", "WORKER1_MEMORY"),
+  },
+  {
+    name: CLUSTER.fetch("WORKER2_NAME"),
+    ip: CLUSTER.fetch("WORKER2_IP"),
+    role: "worker",
+    cpus: resource_for(PROFILES, profile_key, "WORKER2", "CPUS", "WORKER2_CPUS"),
+    memory: resource_for(PROFILES, profile_key, "WORKER2", "MEMORY", "WORKER2_MEMORY"),
+  },
+].freeze
+
+GUI_MODE = ENV.fetch("VAGRANT_GUI", "false").downcase == "true"
+
+# Proxy env vars are only forwarded into provisioning if actually set on
+# the host — see scripts/guest/00-common.sh for what happens with them.
+PROXY_ENV = %w[HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy]
+           .each_with_object({}) { |k, h| h[k] = ENV[k] if ENV[k] }
+
+Vagrant.configure("2") do |config|
+  config.vm.box = VERSIONS.fetch("VAGRANT_BOX_NAME")
+  config.vm.box_version = VERSIONS.fetch("VAGRANT_BOX_VERSION")
+  config.vm.boot_timeout = 600
+
+  # Sync only this module directory (not the whole monorepo) to /vagrant
+  # on each guest — this is exactly the config/ and scripts/ content
+  # provisioning needs, plus docs/tests/examples which are harmless to
+  # have present. .generated/ and .git are excluded explicitly.
+  config.vm.synced_folder ".", "/vagrant",
+                           type: "virtualbox",
+                           SharedFoldersEnableSymlinksCreate: false
+
+  NODES.each do |node|
+    config.vm.define node[:name] do |machine|
+      machine.vm.hostname = node[:name]
+
+      # Host-only network: stable private IP for cluster communication.
+      # A NAT adapter is added automatically by Vagrant/VirtualBox as
+      # each machine's first adapter unless disabled — left in place for
+      # internet access (package installs, image pulls).
+      machine.vm.network "private_network",
+                          ip: node[:ip],
+                          netmask: CLUSTER.fetch("HOSTONLY_NETMASK")
+
+      machine.vm.provider "virtualbox" do |vb|
+        vb.name = node[:name] # predictable VM name for VBoxManage/tests
+        vb.cpus = node[:cpus]
+        vb.memory = node[:memory]
+        vb.gui = GUI_MODE
+        vb.customize ["modifyvm", :id, "--audio", "none"]
+      end
+
+      machine.ssh.insert_key = true
+
+      shared_env = {
+        "NODE_NAME" => node[:name],
+        "NODE_ROLE" => node[:role],
+        "NODE_IP" => node[:ip],
+      }.merge(PROXY_ENV)
+
+      # --- Provisioning order (fixed regardless of script filename
+      # numbering — see docs/INSTALLATION.md "Actual execution order"):
+      #   00 common -> 01 network -> 02 kernel -> 03 containerd ->
+      #   04 kubernetes -> [control-plane only: 09 helm -> 05 kubeadm
+      #   init -> 06 cilium/hubble] -> [worker only: 07 join] -> 10
+      #   node-validation. Storage (08) is invoked separately by
+      #   scripts/host/setup-cluster.sh after BOTH workers exist.
+      %w[00-common 01-configure-network 02-configure-kernel
+         03-install-containerd 04-install-kubernetes].each do |script|
+        machine.vm.provision "shell",
+                              path: "scripts/guest/#{script}.sh",
+                              env: shared_env
+      end
+
+      if node[:role] == "control-plane"
+        machine.vm.provision "shell", path: "scripts/guest/09-install-helm.sh", env: shared_env
+        machine.vm.provision "shell", path: "scripts/guest/05-init-control-plane.sh", env: shared_env
+        machine.vm.provision "shell", path: "scripts/guest/06-install-cilium.sh", env: shared_env
+      else
+        machine.vm.provision "shell", path: "scripts/guest/07-join-worker.sh", env: shared_env
+      end
+
+      machine.vm.provision "shell", path: "scripts/guest/10-node-validation.sh", env: shared_env
+    end
+  end
+end
