@@ -1,0 +1,73 @@
+{
+  "title": "OpenTelemetry Collector Health",
+  "uid": "collector-health",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "tags": ["observability-learning-lab", "collector"],
+  "timezone": "browser",
+  "time": {"from": "now-1h", "to": "now"},
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1, "title": "Received spans / metric points / log records", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "sum(rate(otelcol_receiver_accepted_spans[5m]))", "legendFormat": "spans"},
+        {"expr": "sum(rate(otelcol_receiver_accepted_metric_points[5m]))", "legendFormat": "metric points"},
+        {"expr": "sum(rate(otelcol_receiver_accepted_log_records[5m]))", "legendFormat": "log records"}
+      ]
+    },
+    {
+      "id": 2, "title": "Exported (sent) telemetry", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "sum(rate(otelcol_exporter_sent_spans[5m]))", "legendFormat": "spans"},
+        {"expr": "sum(rate(otelcol_exporter_sent_metric_points[5m]))", "legendFormat": "metric points"},
+        {"expr": "sum(rate(otelcol_exporter_sent_log_records[5m]))", "legendFormat": "log records"}
+      ]
+    },
+    {
+      "id": 3, "title": "Failed exports", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "sum(rate(otelcol_exporter_send_failed_spans[5m]))", "legendFormat": "spans"},
+        {"expr": "sum(rate(otelcol_exporter_send_failed_metric_points[5m]))", "legendFormat": "metric points"},
+        {"expr": "sum(rate(otelcol_exporter_send_failed_log_records[5m]))", "legendFormat": "log records"}
+      ]
+    },
+    {
+      "id": 4, "title": "Refused telemetry (on receipt)", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "sum(rate(otelcol_receiver_refused_spans[5m]))", "legendFormat": "spans"},
+        {"expr": "sum(rate(otelcol_receiver_refused_metric_points[5m]))", "legendFormat": "metric points"},
+        {"expr": "sum(rate(otelcol_receiver_refused_log_records[5m]))", "legendFormat": "log records"}
+      ]
+    },
+    {
+      "id": 5, "title": "Sending-queue utilization", "type": "gauge",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "max(otelcol_exporter_queue_size / otelcol_exporter_queue_capacity)"}],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1, "min": 0, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "orange", "value": 0.6}, {"color": "red", "value": 0.8}]}}, "overrides": []}
+    },
+    {
+      "id": 6, "title": "Collector CPU (agent + gateway)", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "rate(process_cpu_seconds_total{job=~\".*otel-collector.*\"}[5m])", "legendFormat": "{{pod}}"}]
+    },
+    {
+      "id": 7, "title": "Collector memory (agent + gateway)", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "process_runtime_go_mem_heap_alloc_bytes{job=~\".*otel-collector.*\"}", "legendFormat": "{{pod}}"}],
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []}
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+# kube-prometheus-stack values — minimum profile (constrained hosts).
+# Chart: prometheus-community/kube-prometheus-stack
+# ../../config/versions.env KUBE_PROMETHEUS_STACK_CHART_VERSION.
+#
+# grafana.enabled is false: this module installs Grafana via its own
+# chart (../grafana/) so datasource/dashboard provisioning is managed
+# in one place rather than split across two charts — see
+# docs/DECISIONS.md ADR-025.
+grafana:
+  enabled: false
+
+prometheusOperator:
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {cpu: 200m, memory: 256Mi}
+
+alertmanager:
+  alertmanagerSpec:
+    replicas: 1
+    resources:
+      requests: {cpu: 25m, memory: 64Mi}
+      limits: {cpu: 100m, memory: 128Mi}
+    storage: {}  # emptyDir — no PVC in the minimum profile, see docs/20-high-availability-and-dr.md
+
+prometheus:
+  prometheusSpec:
+    replicas: 1
+    retention: "6h"
+    resources:
+      requests: {cpu: 200m, memory: 512Mi}
+      limits: {cpu: 1000m, memory: 1Gi}
+    # Exemplar storage is feature-flagged, not default-on in Prometheus
+    # 3.x — see docs/DEPENDENCIES.md and docs/05-metrics.md "Exemplars".
+    enableFeatures:
+      - exemplar-storage
+    # Permissive discovery for a single-tenant lab — a production
+    # cluster would scope this by label (docs/16-production-design.md).
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    storageSpec: {}  # emptyDir — no PVC in the minimum profile
+
+kubeStateMetrics:
+  enabled: true
+
+nodeExporter:
+  enabled: true
+
+prometheus-node-exporter:
+  resources:
+    requests: {cpu: 25m, memory: 32Mi}
+    limits: {cpu: 100m, memory: 64Mi}

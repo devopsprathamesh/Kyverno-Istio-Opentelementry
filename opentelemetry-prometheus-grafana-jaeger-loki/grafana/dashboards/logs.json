@@ -1,0 +1,49 @@
+{
+  "title": "Logs",
+  "uid": "logs",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "tags": ["observability-learning-lab", "logs"],
+  "timezone": "browser",
+  "time": {"from": "now-1h", "to": "now"},
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "namespace", "type": "custom", "query": "otel-demo,opentelemetry,observability",
+        "current": {"text": "otel-demo", "value": "otel-demo"}
+      },
+      {
+        "name": "service", "type": "custom", "query": "frontend,order-service,inventory-service,payment-service",
+        "multi": true, "includeAll": true, "current": {"text": "All", "value": "$__all"}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "title": "Logs by service", "type": "logs",
+      "gridPos": {"h": 12, "w": 16, "x": 0, "y": 0},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [{"expr": "{k8s_namespace_name=\"$namespace\", service_name=~\"$service\"}"}]
+    },
+    {
+      "id": 2, "title": "Log rate by severity", "type": "timeseries",
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 0},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [{"expr": "sum by (severity) (rate({k8s_namespace_name=\"$namespace\", service_name=~\"$service\"} | json | __error__=\"\" [5m]))"}]
+    },
+    {
+      "id": 3, "title": "Error logs (last 100)", "type": "logs",
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 6},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [{"expr": "{k8s_namespace_name=\"$namespace\", service_name=~\"$service\"} | json | severity=\"ERROR\""}]
+    },
+    {
+      "id": 4, "title": "Top noisy services (log volume)", "type": "bargauge",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 12},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [{"expr": "topk(5, sum by (service_name) (count_over_time({k8s_namespace_name=\"$namespace\"}[1h])))", "instant": true}]
+    }
+  ]
+}

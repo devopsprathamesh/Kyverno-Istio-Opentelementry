@@ -1,0 +1,15 @@
+# Fragment only — see ./README.md and labs/lab-19-cardinality-control.md.
+#
+# order.id is a legitimate span/log attribute (high value for a single-
+# trace lookup) but a disastrous metric label — every unique order ID
+# would create a new Prometheus time series forever. This processor
+# deletes it specifically on the METRICS pipeline (traces/logs keep it)
+# — see docs/18-performance-and-capacity.md "Cardinality" and
+# docs/19-cost-optimization.md.
+processors:
+  attributes/drop_high_cardinality:
+    actions:
+      - key: order.id
+        action: delete
+      - key: customer.id
+        action: delete

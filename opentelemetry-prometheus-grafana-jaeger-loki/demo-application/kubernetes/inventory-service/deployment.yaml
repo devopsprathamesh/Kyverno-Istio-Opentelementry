@@ -1,0 +1,49 @@
+# inventory-service — AUTO-instrumented: the
+# instrumentation.opentelemetry.io/inject-python annotation triggers the
+# Operator's webhook (see
+# ../../../operator/instrumentation/python-instrumentation.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-service
+  namespace: otel-demo
+  labels:
+    app: inventory-service
+    app.kubernetes.io/part-of: observability-learning-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: inventory-service}
+  template:
+    metadata:
+      labels: {app: inventory-service}
+      annotations:
+        instrumentation.opentelemetry.io/inject-python: "opentelemetry/python-instrumentation"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+      containers:
+        - name: inventory-service
+          image: otel-demo/inventory-service:1.0.0
+          imagePullPolicy: Never
+          ports:
+            - {name: http, containerPort: 8000}
+          env:
+            - {name: LOW_STOCK_PROBABILITY, value: "0.05"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # Operator init container writes the auto-instrumentation payload into this container — see ../../../operator/examples/README.md
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: 250m, memory: 192Mi}
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 15

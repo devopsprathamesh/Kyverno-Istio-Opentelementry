@@ -1,0 +1,17 @@
+# Least-privilege RBAC for the k8sattributes processor: read-only,
+# get/list/watch only, on exactly the resource kinds it needs to
+# resolve pod -> namespace/deployment/replicaset metadata. No write
+# verbs anywhere. See docs/17-security-and-governance.md.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-collector-agent
+  labels:
+    app.kubernetes.io/part-of: observability-learning-lab
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]

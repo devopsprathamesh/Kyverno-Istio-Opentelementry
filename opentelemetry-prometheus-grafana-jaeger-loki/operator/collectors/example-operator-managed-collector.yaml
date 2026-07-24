@@ -1,0 +1,54 @@
+# DOCUMENTED EXAMPLE, NOT APPLIED by any install script. This module
+# deploys the Collector as raw manifests instead (../../collector/agent/,
+# .../gateway/) — see docs/DECISIONS.md ADR-029 for the full reasoning
+# (hostPath mounts, RBAC, and the two-tier agent/gateway split need more
+# explicit control than the CRD conveniently exposes for a teaching
+# lab). This file shows the alternative: the same standalone pipeline
+# as ../../collector/standalone/configmap.yaml, expressed as an
+# Operator-managed OpenTelemetryCollector CRD instead of a hand-written
+# Deployment+ConfigMap — the Operator reconciles this into a Deployment,
+# ConfigMap, and Service automatically. Referenced by
+# docs/10-collector-deployment-patterns.md's comparison table.
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: otel-collector-operator-managed-example
+  namespace: opentelemetry
+  labels:
+    app.kubernetes.io/part-of: observability-learning-lab
+spec:
+  mode: deployment
+  replicas: 1
+  image: otel/opentelemetry-collector-contrib:0.157.0
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc: {endpoint: 0.0.0.0:4317}
+          http: {endpoint: 0.0.0.0:4318}
+    processors:
+      memory_limiter:
+        check_interval: 2s
+        limit_mib: 300
+        spike_limit_mib: 100
+      batch: {}
+    exporters:
+      debug:
+        verbosity: detailed
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [debug]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [debug]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [debug]
+  resources:
+    requests: {cpu: 100m, memory: 200Mi}
+    limits: {cpu: 500m, memory: 400Mi}

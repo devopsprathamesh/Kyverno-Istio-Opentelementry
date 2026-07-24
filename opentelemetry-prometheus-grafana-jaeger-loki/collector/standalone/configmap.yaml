@@ -1,0 +1,57 @@
+# Lab-only: a single Collector instance with ONE simple pipeline per
+# signal, no agent/gateway split, no filelog, no tail sampling — the
+# minimum possible config to see receiver -> processor -> exporter work
+# end to end. Used by labs/lab-06-collector-standalone.md only; NOT
+# applied by install-all.sh / install-collector.sh (which install the
+# real agent+gateway architecture instead — see
+# docs/DECISIONS.md ADR-029).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-standalone-config
+  namespace: opentelemetry
+  labels:
+    app.kubernetes.io/part-of: observability-learning-lab
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc: {endpoint: 0.0.0.0:4317}
+          http: {endpoint: 0.0.0.0:4318}
+
+    processors:
+      memory_limiter:
+        check_interval: 2s
+        limit_mib: 300
+        spike_limit_mib: 100
+      batch:
+        send_batch_size: 512
+        timeout: 5s
+
+    exporters:
+      debug:
+        verbosity: detailed
+      otlp/jaeger:
+        endpoint: jaeger-collector.observability.svc.cluster.local:4317
+        tls: {insecure: true}
+      otlphttp/loki:
+        endpoint: http://loki.observability.svc.cluster.local:3100/otlp
+        tls: {insecure: true}
+      prometheus:
+        endpoint: 0.0.0.0:8889
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp/jaeger, debug]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [prometheus, debug]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp/loki, debug]

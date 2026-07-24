@@ -139,16 +139,21 @@ This is the authoritative phase list for this repository. Each phase is built, v
 **Validation requirements:** A demo workload's traces, metrics, and logs are all independently confirmed to arrive at their respective backend and be queryable in Grafana; the `filelog` pipeline specifically validated end to end (stdout → node log file → Collector Agent → Gateway → Loki `/otlp` → Grafana LogQL); trace-to-log correlation demonstrated.
 
 **Definition of done:**
-- [ ] OTel Operator + Collector (Agent + Gateway) installed at versions confirmed against `docs/VERSIONS.md`
-- [ ] Metrics path validated: Collector → Prometheus → Grafana
-- [ ] Traces path validated: Collector → Jaeger → Grafana
-- [ ] Logs path validated: `filelog` receiver → Collector → Loki `/otlp` → Grafana
-- [ ] Trace-to-log and/or log-to-trace correlation demonstrated
-- [ ] `make install`, `make deploy-demo`, `make validate`, `make status`, `make clean`, `make uninstall` implemented per governance conventions
+- [x] OTel Operator + Collector (Agent + Gateway) automation built at versions confirmed against `docs/VERSIONS.md` (Operator `v0.156.0`, Collector Contrib `0.157.0`) — not yet installed against a live cluster
+- [x] Metrics path automation written: Collector → Prometheus (scrape-based, `docs/DECISIONS.md` ADR-028) → Grafana — statically validated, not yet runtime-validated
+- [x] Traces path automation written: Collector (tail-sampled) → Jaeger v2 (native OTLP) → Grafana — not yet runtime-validated
+- [x] Logs path automation written: `filelog` receiver → Collector → Loki `/otlp/v1/logs` → Grafana — not yet runtime-validated
+- [x] Trace-to-log and log-to-trace correlation, plus metric exemplars, fully configured (`install/grafana/datasources/datasources.yaml`) and covered by a dedicated runtime test (`tests/correlation-test.sh`) — not yet run
+- [x] Two-language demo application (Node.js + Python) built from scratch with explicit auto-vs-manual instrumentation split per service, custom Dockerfiles, local-build/containerd-import path (no registry) — not yet buildable/runnable in this session (no Docker/podman on this host)
+- [x] 22 concept documents (24 Mermaid diagrams), 22 labs (`lab-00`–`lab-21`), and a combined-observability-lab capstone written
+- [x] `make install-all`, `make deploy-demo`, `make validate-installation`/`validate`, `make status`, `make clean`, `make uninstall-all` (plus the full target list from the phase spec) implemented per governance conventions
+- [ ] **Live cluster runtime validation actually performed** — deliberately not done in this session; no live cluster (and no Docker/podman for image builds) existed at the time (see `docs/VALIDATION-STATUS.md` Phase 5 detail for exact commands to complete this)
 
-**Known risks:** `filelog` receiver behavior on log rotation/high-throughput pods; Collector contrib-component API drift between `v0.x` releases (see `docs/VERSIONS.md`); Loki storage-schema choice needs to be made deliberately, not defaulted.
+**Status: automation and documentation complete and statically validated; live-cluster runtime validation pending (no cluster, and no local container-build tooling, existed this session — matching this phase's own "no live cluster available" execution policy).** See `docs/VALIDATION-STATUS.md` for the full breakdown.
 
-**Out of scope:** Kyverno or Istio integration (reserved for Phase 6); Hubble-to-Prometheus metrics integration (explicitly noted as a separate, not-yet-built path in `docs/DEPENDENCIES.md` §10).
+**Known risks:** `filelog` receiver behavior on log rotation/high-throughput pods (documented, not load-tested); the Jaeger/Grafana/Loki Helm chart appVersion-vs-latest-release lag noted in `docs/VERSIONS.md` (image tags overridden explicitly to close this); the Grafana/Loki Helm chart repository migration (legacy `grafana.github.io/helm-charts` is stale for these two charts — `grafana-community.github.io/helm-charts` used instead, `docs/VERSIONS.md` Phase 5 addendum); no persistent Gateway export queue (a stated, not-yet-closed gap, `opentelemetry-prometheus-grafana-jaeger-loki/docs/16-production-design.md`).
+
+**Out of scope:** Kyverno or Istio integration (reserved for Phase 6); Hubble-to-Prometheus metrics integration (explicitly noted as a separate, not-yet-built path in `docs/DEPENDENCIES.md` §10); Kiali (never installed by this phase).
 
 ---
 

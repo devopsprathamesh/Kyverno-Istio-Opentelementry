@@ -1,0 +1,43 @@
+# Jaeger values — recommended profile (~32GB host RAM). Still allInOne
+# mode (real production-scale Jaeger needs Elasticsearch/Cassandra plus
+# separately-scaled collector/query — out of scope for this lab, see
+# docs/13-jaeger-architecture.md), but with badger (persistent embedded
+# storage) + a PVC instead of memory storage, so traces survive a pod
+# restart within this lab session.
+allInOne:
+  enabled: true
+  image:
+    pullPolicy: IfNotPresent
+  args:
+    - --collector.otlp.enabled=true
+  resources:
+    requests: {cpu: 200m, memory: 512Mi}
+    limits: {cpu: 1000m, memory: 1Gi}
+  extraEnv:
+    - name: SPAN_STORAGE_TYPE
+      value: badger
+    - name: BADGER_EPHEMERAL
+      value: "false"
+    - name: BADGER_DIRECTORY_VALUE
+      value: /badger/data
+    - name: BADGER_DIRECTORY_KEY
+      value: /badger/key
+  persistence:
+    enabled: true
+    size: "5Gi"  # matches config/retention.env JAEGER_PVC_SIZE_RECOMMENDED
+    mountPath: /badger
+
+collector:
+  enabled: false
+query:
+  enabled: false
+agent:
+  enabled: false
+
+provisionDataStore:
+  cassandra: false
+  elasticsearch: false
+  kafka: false
+
+storage:
+  type: badger

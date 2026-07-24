@@ -1,0 +1,10 @@
+# Deliberately NO opentelemetry-* packages here — this service is
+# AUTO-instrumented by the Operator's webhook (see
+# ../../operator/instrumentation/python-instrumentation.yaml), which
+# injects a self-contained OTel distribution via an init container at
+# pod-start time. Zero code or dependency changes to this application —
+# that is the entire point of auto-instrumentation. Contrast with
+# order-service/requirements.txt and payment-service/requirements.txt.
+fastapi==0.118.0
+uvicorn[standard]==0.37.0
+python-json-logger==3.3.0

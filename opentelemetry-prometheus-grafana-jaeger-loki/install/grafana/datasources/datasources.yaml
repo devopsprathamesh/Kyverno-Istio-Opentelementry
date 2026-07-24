@@ -1,0 +1,58 @@
+# Grafana datasource provisioning. This file is a values FRAGMENT passed
+# to `helm upgrade -f` alongside values-{profile}.yaml (see
+# ../../../scripts/install-grafana.sh) — its top-level key
+# ("datasources") matches the grafana/grafana Helm chart's own schema
+# directly, so no sidecar container or separately-created Secret is
+# needed to get these provisioned.
+#
+# Field names verified current as of 2026-07-24 against live Grafana
+# docs/source (docs/DEPENDENCIES.md §6, docs/VERSIONS.md Phase 5
+# addendum): exemplarTraceIdDestinations (Prometheus), tracesToLogsV2
+# (Jaeger — supersedes the older tracesToLogs), derivedFields (Loki).
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090
+        isDefault: true
+        jsonData:
+          timeInterval: 30s
+          # Requires Prometheus's exemplar-storage feature flag — see
+          # install/prometheus/values-*.yaml and docs/05-metrics.md.
+          exemplarTraceIdDestinations:
+            - datasourceUid: jaeger
+              name: trace_id
+
+      - name: Jaeger
+        uid: jaeger
+        type: jaeger
+        access: proxy
+        url: http://jaeger-query.observability.svc.cluster.local:16686
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: "-1m"
+            spanEndTimeShift: "1m"
+            tags: [{key: "service.name", value: "service_name"}]
+            filterByTraceID: false
+            filterBySpanID: false
+            customQuery: true
+            query: '{namespace="otel-demo"} | json | trace_id=`${__trace.traceId}`'
+
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://loki.observability.svc.cluster.local:3100
+        jsonData:
+          derivedFields:
+            # Internal link: datasourceUid + NO url field means Grafana
+            # queries the Jaeger datasource directly using the matched
+            # value as the trace ID, rather than building an external URL.
+            - datasourceUid: jaeger
+              matcherRegex: '"trace_id"\s*:\s*"([a-f0-9]+)"'
+              name: TraceID

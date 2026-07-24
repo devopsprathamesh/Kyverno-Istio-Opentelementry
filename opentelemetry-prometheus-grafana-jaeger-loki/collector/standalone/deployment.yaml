@@ -1,0 +1,45 @@
+# Lab-only standalone Collector (labs/lab-06-collector-standalone.md).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector-standalone
+  namespace: opentelemetry
+  labels:
+    app: otel-collector-standalone
+    app.kubernetes.io/part-of: observability-learning-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: otel-collector-standalone}
+  template:
+    metadata:
+      labels: {app: otel-collector-standalone}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:0.157.0
+          imagePullPolicy: IfNotPresent
+          args: ["--config=/etc/otelcol/config.yaml"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          ports:
+            - {name: otlp-grpc, containerPort: 4317}
+            - {name: otlp-http, containerPort: 4318}
+            - {name: prom-export, containerPort: 8889}
+          resources:
+            requests: {cpu: 100m, memory: 200Mi}
+            limits: {cpu: 500m, memory: 400Mi}
+          volumeMounts:
+            - {name: config, mountPath: /etc/otelcol, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: config
+          configMap: {name: otel-collector-standalone-config}
+        - name: tmp
+          emptyDir: {}

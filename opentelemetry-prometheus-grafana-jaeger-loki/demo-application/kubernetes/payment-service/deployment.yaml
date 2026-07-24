@@ -1,0 +1,55 @@
+# payment-service — MANUALLY instrumented (see
+# ../../payment-service/app.py). LATENCY_MS/FAILURE_PERCENT default to
+# 0 here; scripts/inject-latency.sh and scripts/inject-errors.sh change
+# them via `kubectl set env` (a rolling restart), never by editing this
+# file — see labs/lab-10-fault-injection.md onward.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: otel-demo
+  labels:
+    app: payment-service
+    app.kubernetes.io/part-of: observability-learning-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: payment-service}
+  template:
+    metadata:
+      labels: {app: payment-service}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+      containers:
+        - name: payment-service
+          image: otel-demo/payment-service:1.0.0
+          imagePullPolicy: Never
+          ports:
+            - {name: http, containerPort: 8000}
+          env:
+            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://otel-collector-gateway.opentelemetry.svc.cluster.local:4317"}
+            - {name: LATENCY_MS, value: "0"}
+            - {name: FAILURE_PERCENT, value: "0"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}

@@ -1,0 +1,70 @@
+# Collector Gateway. `__IMAGE__`/`__REPLICA_COUNT__` are substituted by
+# scripts/install-collector.sh from config/versions.env and LAB_PROFILE.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector-gateway
+  namespace: opentelemetry
+  labels:
+    app: otel-collector-gateway
+    app.kubernetes.io/part-of: observability-learning-lab
+spec:
+  replicas: __REPLICA_COUNT__
+  selector:
+    matchLabels:
+      app: otel-collector-gateway
+  template:
+    metadata:
+      labels:
+        app: otel-collector-gateway
+    spec:
+      serviceAccountName: otel-collector-gateway
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: otel-collector-gateway
+          image: __IMAGE__
+          imagePullPolicy: IfNotPresent
+          args: ["--config=/etc/otelcol/config.yaml"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+            - name: health
+              containerPort: 13133
+            - name: metrics
+              containerPort: 8888
+            - name: prom-export
+              containerPort: 8889
+          resources:
+            requests: {cpu: 250m, memory: 400Mi}
+            limits: {cpu: 1000m, memory: 800Mi}
+          readinessProbe:
+            httpGet: {path: /, port: health}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /, port: health}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-gateway-config
+        - name: tmp
+          emptyDir: {}

@@ -1,0 +1,39 @@
+# Jaeger values — minimum profile. Chart: jaegertracing/helm-charts "jaeger"
+# ../../config/versions.env JAEGER_HELM_CHART_VERSION (image.tag overridden
+# at install time to JAEGER_APP_VERSION).
+#
+# allInOne mode (one Deployment running collector+query+UI together) with
+# in-memory storage — resource-efficient for a lab, explicitly NOT
+# production-grade (traces are lost on pod restart). See
+# docs/13-jaeger-architecture.md "All-in-one vs. production distributed
+# mode" — do not read this profile as a production recommendation.
+allInOne:
+  enabled: true
+  image:
+    # tag is overridden by scripts/install-jaeger.sh via --set image.tag
+    pullPolicy: IfNotPresent
+  args:
+    - --collector.otlp.enabled=true
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+  extraEnv:
+    - name: SPAN_STORAGE_TYPE
+      value: memory
+    - name: MEMORY_MAX_TRACES
+      value: "25000"  # matches config/retention.env JAEGER_MAX_TRACES_MINIMUM
+
+collector:
+  enabled: false
+query:
+  enabled: false
+agent:
+  enabled: false  # No Jaeger agent in Jaeger v2 — the Collector's own OTLP receiver replaces it entirely.
+
+provisionDataStore:
+  cassandra: false
+  elasticsearch: false
+  kafka: false
+
+storage:
+  type: memory

@@ -26,9 +26,10 @@ This document records cross-component dependencies, required cluster resources, 
 
 ## 4. Kubernetes and the OpenTelemetry Operator
 
-- **Compatibility:** No published Kubernetes floor/ceiling beyond a generally current supported minor; this is expected to be compatible with 1.35.6, but the exact Operator patch tag is flagged unverified in [`VERSIONS.md`](VERSIONS.md) and must be re-confirmed before Phase 5.
-- **CRDs required:** `OpenTelemetryCollector`, `Instrumentation`, `OpAMPBridge` (if used), `TargetAllocator` (if Prometheus service-discovery target allocation is used).
+- **Compatibility:** No published Kubernetes floor/ceiling beyond a generally current supported minor; confirmed compatible with 1.35.6. The Operator patch tag (`v0.156.0`) is now confirmed — see [`VERSIONS.md`](VERSIONS.md) "Phase 5 addendum".
+- **CRDs required:** `OpenTelemetryCollector`, `Instrumentation`. This repository's Phase 5 module (`../opentelemetry-prometheus-grafana-jaeger-loki/`) uses only `Instrumentation` for real (auto-instrumentation); it deploys the Collector via raw manifests instead of `OpenTelemetryCollector`, keeping exactly one documented example of that CRD without relying on it operationally — see that module's `docs/DECISIONS.md` ADR-029.
 - **Cluster-wide webhook:** The Operator's pod-mutating webhook (for auto-instrumentation injection via the `Instrumentation` CRD) is namespace/pod-label-scoped, similar in blast-radius shape to Istio's injector, not Kyverno's default cluster-wide watch.
+- **Certificate dependency — resolved, no cert-manager required:** the Operator's webhook needs a TLS certificate, obtainable either via cert-manager (the chart default) or Helm's own `admissionWebhooks.autoGenerateCert` self-signed path. Phase 5 uses the latter specifically to avoid adding a second CRD-based operator dependency; cert-manager is documented as an alternative, not installed. See `../opentelemetry-prometheus-grafana-jaeger-loki/install/cert-manager/README.md`.
 - **Ordering requirement:** Install after Cilium; independent of Kyverno and Istio, though in the integrated lab it must coexist with both webhook types on the same pods (see §9 below).
 
 ## 5. OpenTelemetry Collector and Loki OTLP ingestion
@@ -47,6 +48,7 @@ This document records cross-component dependencies, required cluster resources, 
 
 - Jaeger v2 is OTLP-native (built on the OpenTelemetry Collector core) — the Collector Gateway exports directly via OTLP to Jaeger v2's OTLP receiver, with no Jaeger-proprietary protocol (`jaeger.thrift`, `jaeger.proto` over the legacy collector API) required for this repository's pipeline.
 - Do not deploy Jaeger v1 components; the two major versions are not designed to be mixed in one pipeline for this lab.
+- **Confirmed in Phase 5: the Jaeger Operator is deprecated upstream** (its own repository states it "only works with retired Jaeger v1"; last release over 18 months stale at research time) — never used by `../opentelemetry-prometheus-grafana-jaeger-loki/`, which installs Jaeger v2 via the official `jaegertracing/helm-charts` chart directly instead. See that module's `docs/DECISIONS.md` ADR-027.
 
 ## 8. Cilium and Istio compatibility
 

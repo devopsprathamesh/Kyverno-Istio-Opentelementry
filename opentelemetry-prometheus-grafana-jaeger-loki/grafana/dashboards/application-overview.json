@@ -1,0 +1,56 @@
+{
+  "title": "Application Overview",
+  "uid": "app-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "tags": ["observability-learning-lab", "application"],
+  "timezone": "browser",
+  "time": {"from": "now-1h", "to": "now"},
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1, "title": "Request rate (per service)", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "job:http_requests:rate5m", "legendFormat": "{{job}}"}]
+    },
+    {
+      "id": 2, "title": "Error rate (per service)", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "job:http_error_ratio:ratio5m", "legendFormat": "{{job}}"}],
+      "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []}
+    },
+    {
+      "id": 3, "title": "P50 / P95 / P99 latency", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum(rate(http_server_duration_milliseconds_bucket[5m])) by (job, le))", "legendFormat": "{{job}} p50"},
+        {"expr": "job:http_request_duration:p95_5m", "legendFormat": "{{job}} p95"},
+        {"expr": "job:http_request_duration:p99_5m", "legendFormat": "{{job}} p99"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []}
+    },
+    {
+      "id": 4, "title": "Active requests", "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "active_requests", "legendFormat": "in-flight"}]
+    },
+    {
+      "id": 5, "title": "Orders completed / sec", "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "orders:rate5m"}]
+    },
+    {
+      "id": 6, "title": "Orders failed / sec", "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "orders_failed:rate5m"}],
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 0.5}]}}, "overrides": []}
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+# Instrumentation CRD for the Node.js frontend (auto-instrumented — see
+# docs/DECISIONS.md ADR-031's per-service instrumentation split).
+# Applied to a pod by adding the annotation
+# `instrumentation.opentelemetry.io/inject-nodejs: "opentelemetry/nodejs-instrumentation"`
+# to that Deployment's pod template — see
+# ../../demo-application/kubernetes/frontend/deployment.yaml.
+#
+# exporter.endpoint points directly at the Collector Gateway Service
+# (cluster DNS, always resolvable) rather than the node-local Agent's
+# OTLP receiver — a deliberate simplification for this lab (the Agent's
+# OTLP receiver is still configured and available, see
+# ../../collector/agent/configmap.yaml, as a documented alternative
+# using a Downward API HOST_IP env var instead). See
+# docs/09-collector-internals.md.
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: nodejs-instrumentation
+  namespace: opentelemetry
+  labels:
+    app.kubernetes.io/part-of: observability-learning-lab
+spec:
+  exporter:
+    endpoint: http://otel-collector-gateway.opentelemetry.svc.cluster.local:4317
+  propagators:
+    - tracecontext
+    - baggage
+  sampler:
+    type: parentbased_traceidratio
+    argument: "1.0"
+  resource:
+    addK8sUIDAttributes: true
+  nodejs:
+    env:
+      - name: OTEL_NODE_RESOURCE_DETECTORS
+        value: "env,host,os"
+      - name: OTEL_LOG_LEVEL
+        value: "info"

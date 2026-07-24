@@ -1,0 +1,53 @@
+# frontend — AUTO-instrumented: the
+# instrumentation.opentelemetry.io/inject-nodejs annotation is what
+# actually triggers the Operator's webhook mutation (see
+# ../../../operator/instrumentation/nodejs-instrumentation.yaml and
+# ../../../operator/examples/README.md for what it produces).
+# imagePullPolicy: Never — built locally and imported directly into
+# node containerd by scripts/build-demo-images.sh, no registry.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: otel-demo
+  labels:
+    app: frontend
+    app.kubernetes.io/part-of: observability-learning-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: frontend}
+  template:
+    metadata:
+      labels: {app: frontend}
+      annotations:
+        instrumentation.opentelemetry.io/inject-nodejs: "opentelemetry/nodejs-instrumentation"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+      containers:
+        - name: frontend
+          image: otel-demo/frontend:1.0.0
+          imagePullPolicy: Never
+          ports:
+            - {name: http, containerPort: 3000}
+          env:
+            - {name: PORT, value: "3000"}
+            - {name: ORDER_SERVICE_URL, value: "http://order-service.otel-demo.svc.cluster.local:8000"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # the Operator's init container writes the auto-instrumentation payload into this container's filesystem at a mounted path — see ../../../operator/examples/README.md
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: 250m, memory: 192Mi}
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 15

@@ -407,3 +407,147 @@ Each ADR follows: Status, Context, Decision, Alternatives considered, Consequenc
 **Risks:** None specific — the only cost is the mild indirection of every manifest referencing `stable-1-30` instead of an implicit default, which is itself documented.
 
 **Validation requirements:** `istio/labs/lab-01-installing-istio.md` step 4 confirms the installed revision matches `config/lab-settings.env` before any subsequent lab proceeds.
+
+## ADR-025: kube-prometheus-stack over bare Prometheus
+
+**Status:** Accepted
+
+**Context:** Phase 5 needed Prometheus plus, per the phase spec's own explicit requirements, `ServiceMonitor`/`PodMonitor` CRDs, recording/alerting rules infrastructure, kube-state-metrics, and node-exporter — all separately installable, or bundled.
+
+**Decision:** `opentelemetry-prometheus-grafana-jaeger-loki/` installs the `kube-prometheus-stack` Helm chart (bundling Prometheus, the Prometheus Operator, Alertmanager, kube-state-metrics, and node-exporter) rather than a bare Prometheus Deployment plus hand-wired scrape configs.
+
+**Alternatives considered:** Bare Prometheus with static scrape configs — rejected: would require hand-maintaining scrape targets as pods are rescheduled (no service-discovery integration) and reimplementing rule-loading infrastructure the chart already provides correctly.
+
+**Consequences:** This module depends on the Prometheus Operator's CRDs (`ServiceMonitor`/`PodMonitor`/`PrometheusRule`) for all scrape and rule configuration — `prometheus/servicemonitors/`, `prometheus/podmonitors/`, `prometheus/recording-rules/`, `prometheus/alerts/` are all CRD instances, not raw Prometheus config.
+
+**Risks:** The chart's `grafana.enabled` subchart is explicitly disabled (`install/prometheus/values-*.yaml`) since this module installs Grafana separately via its own chart — a real, if minor, point of potential confusion for anyone expecting kube-prometheus-stack's bundled Grafana to be what's running.
+
+**Validation requirements:** `tests/prometheus-test.sh` confirms the Operator-generated scrape config actually picks up this module's `PodMonitor`/`ServiceMonitor` instances.
+
+## ADR-026: OpenTelemetry Operator webhook certs via Helm `autoGenerateCert`, cert-manager documented not installed
+
+**Status:** Accepted
+
+**Context:** The Operator's mutating admission webhook needs a TLS certificate; the chart supports both `cert-manager`-issued and Helm-native self-signed certificates.
+
+**Decision:** Use `admissionWebhooks.autoGenerateCert.enabled=true` (Helm-native), not cert-manager. `install/cert-manager/README.md` documents the cert-manager alternative and its pinned version (`v1.21.0`) without installing it.
+
+**Alternatives considered:** Installing cert-manager — rejected as this phase's default: adds a second, separate CRD-based operator dependency this lab does not otherwise need, purely to obtain a webhook certificate a simpler mechanism already provides.
+
+**Consequences:** This module's actual footprint stays to exactly the 5 tools the phase is about, plus the Operator — no incidental sixth component.
+
+**Risks:** `autoGenerateCert`'s self-signed certificate needs to be regenerated on `helm upgrade` (not just first install) to avoid staleness — `install/opentelemetry-operator/values.yaml` sets `recreate: true` specifically to address this.
+
+**Validation requirements:** `scripts/install-operator.sh` waits for the mutating webhook to actually register before returning, and `tests/collector-test.sh`'s equivalent for the Operator (`validate-installation.sh operator`) confirms the webhook exists post-install.
+
+## ADR-027: Jaeger via the official Helm chart, not the deprecated Operator
+
+**Status:** Accepted
+
+**Context:** Two historical Jaeger install paths exist: the Jaeger Operator, and the official `jaegertracing/helm-charts` chart. Research confirmed the Operator is upstream-deprecated ("only works with retired Jaeger v1," last release over 18 months stale).
+
+**Decision:** Install Jaeger v2 via the official Helm chart directly (`install/jaeger/values-*.yaml`), never the Operator.
+
+**Alternatives considered:** The Jaeger Operator — rejected outright given its confirmed deprecated status; using it would teach a dead-end install path.
+
+**Consequences:** Jaeger's `allInOne` mode (this lab's chosen deployment shape, both profiles) is configured entirely through Helm values, no separate `Jaeger` CRD involved.
+
+**Risks:** None specific to this decision — the risk this ADR closes off (learning a deprecated tool) is the one being avoided.
+
+**Validation requirements:** `tests/jaeger-test.sh` confirms the chart-installed Jaeger's native OTLP receiver actually works.
+
+## ADR-028: Collector→Prometheus integration is scrape-based, not remote write
+
+**Status:** Accepted
+
+**Context:** The Collector's metrics can reach Prometheus two ways: expose a `prometheus` exporter endpoint for Prometheus to scrape, or push via Prometheus remote write.
+
+**Decision:** Use the `prometheus` exporter (scrape-based) — `collector/gateway/configmap.yaml`'s metrics pipeline, scraped via `prometheus/podmonitors/otel-collector-podmonitor.yaml`.
+
+**Alternatives considered:** Remote write — rejected as this lab's default: requires enabling Prometheus's remote-write receiver explicitly and reasons about push-based backpressure differently than this lab's pull-based mental model elsewhere; scrape-based keeps the Collector's Prometheus integration consistent with how Prometheus already discovers every other target in this cluster.
+
+**Consequences:** The Gateway's Prometheus exporter port (`8889`) is a real, always-on scrape target — visible identically to any other Kubernetes workload's metrics endpoint, nothing exotic about it operationally.
+
+**Risks:** Remote write is the real production-scale alternative when a Collector's metric volume outgrows what pull-based scraping handles gracefully — documented as the production path in `opentelemetry-prometheus-grafana-jaeger-loki/docs/16-production-design.md`, not implemented here.
+
+**Validation requirements:** `tests/metrics-test.sh` confirms the PodMonitor target is actually healthy and scraped.
+
+## ADR-029: Collector deployed via raw manifests, not Operator-managed CRDs
+
+**Status:** Accepted
+
+**Context:** The OpenTelemetry Operator can manage a Collector Deployment/DaemonSet declaratively via the `OpenTelemetryCollector` CRD — an alternative to hand-writing Kubernetes manifests directly.
+
+**Decision:** `opentelemetry-prometheus-grafana-jaeger-loki/collector/agent/` and `.../gateway/` are raw Kubernetes manifests (DaemonSet/Deployment/ConfigMap/RBAC), applied by `scripts/install-collector.sh` — not an `OpenTelemetryCollector` CRD instance. One documented, non-applied example CRD (`operator/collectors/example-operator-managed-collector.yaml`) is kept as a teaching artifact showing the alternative.
+
+**Alternatives considered:** Operator-managed Collector CRDs — rejected as this lab's default: the CRD abstraction makes it less direct to express the specific hostPath mounts (`/var/log/pods`), tightly-scoped RBAC, and two-tier Agent/Gateway topology this phase's spec requires exactly as specified; raw manifests give full, explicit control.
+
+**Consequences:** This module's Collector install is not automatically reconciled/self-healing the way an Operator-managed resource would be — a deliberate, stated tradeoff, not an oversight.
+
+**Risks:** Configuration drift between what a learner might expect from "the Operator manages the Collector" (a common pattern in other OTel tutorials) and this lab's actual raw-manifest approach — mitigated by stating this explicitly in `docs/10-collector-deployment-patterns.md` and this module's README.
+
+**Validation requirements:** `tests/collector-test.sh` validates the raw-manifest-deployed Agent/Gateway directly.
+
+## ADR-030: Demo application images built locally, imported directly into node containerd — no registry
+
+**Status:** Accepted
+
+**Context:** The demo application (`frontend`→`order-service`→`{inventory-service,payment-service}`) needs real, custom business logic (configurable latency/failure, custom spans/metrics, structured logs) — unlike `istio/`'s reuse of a stock `traefik/whoami` image, no pre-built image can satisfy this. This repository has no local container registry, and pushing to a public registry is explicitly prohibited without instruction.
+
+**Decision:** `demo-application/` ships full source code and pinned-version Dockerfiles for all 5 images (frontend, order-service, inventory-service, payment-service, load-generator). `scripts/build-demo-images.sh` builds them locally (docker or podman) and imports each directly into every cluster node's containerd via `vagrant ssh <node> -- sudo ctr -n k8s.io images import -` — no registry, public or private, involved at any point. Kubernetes manifests use `imagePullPolicy: Never` accordingly.
+
+**Alternatives considered:** (1) Pushing to a public registry under explicit user instruction — not pursued since it wasn't requested and would require credential handling outside this session's scope. (2) Using the official OpenTelemetry Demo (astronomy shop) app's public images — rejected: a materially different application shape than the specific `frontend→order-service→{inventory,payment}` architecture and metric/span-naming requirements this phase specified. (3) Mounting application source into a stock language-runtime image with dependencies installed at pod startup — rejected: introduces a runtime dependency on PyPI/npm reachability from inside the cluster and doesn't produce genuinely pinned images, a worse tradeoff than a one-time local build step.
+
+**Consequences:** `make build-demo-images`/`make deploy-demo` require both a container builder (Docker/Podman) and `vagrant` ssh access to the base platform's VMs on whatever host runs them — a real, stated prerequisite gap distinct from every other install target in this repository, which only need `kubectl`/`helm`.
+
+**Risks:** This is the one part of Phase 5 that could not be exercised at all during this session (no Docker/podman on this host) — fully implemented and statically validated (Python/Node syntax, Dockerfile review), but genuinely never run; recorded honestly in `docs/VALIDATION-STATUS.md`, not glossed over.
+
+**Validation requirements:** `tests/static-validation.sh`'s Dockerfile-review and Python/Node-syntax-check steps are what stood in for real validation this session; full validation requires `make build-demo-images` to actually run once a suitable host is available.
+
+## ADR-031: Two-language demo application with an explicit auto-vs-manual instrumentation split
+
+**Status:** Accepted
+
+**Context:** The phase spec requires demonstrating both automatic and manual instrumentation, with each explicitly identified per service, using at most two implementation languages.
+
+**Decision:** Node.js (`frontend`) + Python (`order-service`, `inventory-service`, `payment-service`). Auto-instrumented: `frontend` (Node.js path), `inventory-service` (Python path — demonstrating the Python auto path distinctly from `frontend`'s Node.js one). Manually instrumented: `order-service` (custom spans/metrics, calls both downstream services), `payment-service` (custom spans/metrics, plus the configurable-failure/latency controls every controlled-failure lab from `lab-10` onward depends on).
+
+**Alternatives considered:** Python-only or Node.js-only — rejected: the phase spec explicitly asks for the auto-vs-manual contrast to be real and inspectable, which is clearer across two languages (avoiding any appearance that the distinction is language-specific rather than a genuine Operator-injection-vs-hand-written-SDK distinction). Go for a third language — rejected per research: Go auto-instrumentation is experimental/eBPF-sidecar-based, unsuited to a low-friction teaching demo.
+
+**Consequences:** `inventory-service/requirements.txt` and `frontend/package.json` deliberately carry zero (or, for `frontend`, exactly one no-op API-only) OpenTelemetry package, while `order-service`/`payment-service` carry the full SDK — a directly inspectable, real difference in each service's own dependency manifest, not just a claim in documentation.
+
+**Risks:** None specific — this decision only affects which services demonstrate which instrumentation path, not the pipeline's own correctness.
+
+**Validation requirements:** `labs/lab-08-auto-instrumentation.md`/`lab-09-manual-instrumentation.md` both require directly inspecting the running pods' spec (init containers, injected env vars) to confirm the split is real, not asserted.
+
+## ADR-032: Tail sampling policy for the Gateway traces pipeline
+
+**Status:** Accepted
+
+**Context:** The phase spec requires demonstrating multiple sampling strategies, including guaranteeing error and slow traces are kept.
+
+**Decision:** `collector/gateway/configmap.yaml`'s `tail_sampling` processor, policies in order: `keep-all-errors` (status code ERROR), `keep-slow-traces` (latency > 500ms), `probabilistic-baseline` (15% of everything else). SDK-level sampling (`operator/instrumentation/*.yaml`) is left at `parentbased_traceidratio` argument `1.0` — i.e., the SDKs always create real spans, deferring all actual sampling decisions to this Gateway policy.
+
+**Alternatives considered:** Head sampling at the SDK as the primary mechanism — rejected as the default: cannot structurally guarantee "always keep error traces," since a head-sampling decision is made before the trace's outcome is known; tail sampling can express that guarantee directly.
+
+**Consequences:** The Gateway must hold recent trace state in memory (`num_traces: 50000`) for the `decision_wait` window (10s) — a real, documented memory cost (`docs/18-performance-and-capacity.md`) and a real, documented multi-replica-consistency caveat (`docs/16-production-design.md`) at Gateway replica count > 1.
+
+**Risks:** Tail sampling's correctness at scale depends on every span of one trace reaching the same Gateway replica — not guaranteed by this lab's plain Kubernetes Service round-robin at more than 1 replica; documented as a real gap, not implemented (consistent trace-ID routing would close it).
+
+**Validation requirements:** `tests/sampling-test.sh` proves the `keep-all-errors` policy directly, with real, deliberately-forced error traffic.
+
+## ADR-033: Minimum and recommended observability resource profiles
+
+**Status:** Accepted
+
+**Context:** Mirrors the profile pattern already established for `auto-setup-default-kube-env/`, `kyverno/`, and `istio/` — a constrained-host profile and a more-realistic-shape profile, neither claiming to be production-HA.
+
+**Decision:** `LAB_PROFILE=minimum` (single replicas, short retention, in-memory Jaeger, no PVCs) vs. `recommended` (2 Alertmanager replicas, PVC-backed Prometheus/Loki/Jaeger, longer retention) — implemented per-tool in `install/*/values-{minimum,recommended}.yaml`.
+
+**Alternatives considered:** A single, one-size profile — rejected for consistency with this repository's established pattern across every prior module, and because a genuinely resource-constrained host (this repository's stated minimum target) needs a materially lighter configuration than a 32GB host can support.
+
+**Consequences:** Neither profile is HA in the full sense (`docs/20-high-availability-and-dr.md` states this explicitly) — `recommended` is closer to production *shape*, not production *scale* or *durability*.
+
+**Risks:** A learner could mistake `LAB_PROFILE=recommended` for "production-ready" — mitigated by explicit, repeated documentation (this module's README "Resource profiles" section, `docs/20-high-availability-and-dr.md`'s comparison table) stating otherwise.
+
+**Validation requirements:** `make install-all LAB_PROFILE=minimum` and `LAB_PROFILE=recommended` both need to succeed independently — not yet runtime-validated this session (no live cluster), statically validated (values-file YAML structure, resource-field presence) instead.

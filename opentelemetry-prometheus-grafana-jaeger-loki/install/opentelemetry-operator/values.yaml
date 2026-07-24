@@ -1,0 +1,38 @@
+# OpenTelemetry Operator Helm values. Chart: open-telemetry/opentelemetry-operator
+# ../../config/versions.env OTEL_OPERATOR_HELM_CHART_VERSION.
+# image.tag is overridden at install time via --set (scripts/install-operator.sh)
+# so this file never hardcodes a version that could drift from config/versions.env.
+#
+# Uses Helm's self-signed cert generation instead of cert-manager — see
+# ../cert-manager/README.md and docs/DECISIONS.md ADR-026.
+admissionWebhooks:
+  certManager:
+    enabled: false
+  autoGenerateCert:
+    enabled: true
+    # Recreate the self-signed cert on every `helm upgrade`, not just the
+    # first install, so a revoked/expired lab cert never silently persists.
+    recreate: true
+
+manager:
+  # This lab deploys the Collector itself via raw manifests (../../collector/),
+  # not the Operator's OpenTelemetryCollector CRD — see docs/DECISIONS.md
+  # ADR-029. The Operator is only used here for the Instrumentation CRD's
+  # auto-instrumentation webhook. featureGates below reflects that scope.
+  featureGates: "operator.autoinstrumentation.multi-instrumentation"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+kubeRBACProxy:
+  enabled: true
+
+# Only the Instrumentation CRD's admission behavior matters to this lab;
+# the Operator's own Collector-CRD reconciler is left enabled (it is part
+# of the same binary and cannot be disabled independently), but this
+# lab never creates an OpenTelemetryCollector CRD instance except the
+# one documented, non-applied example in ../../operator/collectors/.

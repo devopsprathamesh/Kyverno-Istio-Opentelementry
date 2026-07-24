@@ -1,0 +1,53 @@
+# kube-prometheus-stack values — recommended profile (~32GB host RAM).
+# grafana.enabled is false — see values-minimum.yaml's comment;
+# this module installs Grafana separately via ../grafana/.
+grafana:
+  enabled: false
+
+prometheusOperator:
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+
+alertmanager:
+  alertmanagerSpec:
+    replicas: 2
+    resources:
+      requests: {cpu: 50m, memory: 128Mi}
+      limits: {cpu: 200m, memory: 256Mi}
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests: {storage: "1Gi"}
+
+prometheus:
+  prometheusSpec:
+    replicas: 1
+    retention: "24h"
+    resources:
+      requests: {cpu: 500m, memory: 1Gi}
+      limits: {cpu: 2000m, memory: 2Gi}
+    enableFeatures:
+      - exemplar-storage
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests: {storage: "10Gi"}
+
+kubeStateMetrics:
+  enabled: true
+
+nodeExporter:
+  enabled: true
+
+prometheus-node-exporter:
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 200m, memory: 128Mi}

@@ -1,0 +1,40 @@
+# Grafana values — minimum profile. Chart: grafana-community/helm-charts "grafana"
+# ../../config/versions.env GRAFANA_HELM_CHART_VERSION. adminPassword and
+# image.tag are set at install time (scripts/install-grafana.sh) —
+# admin credentials are never committed to Git, see
+# docs/17-security-and-governance.md.
+adminUser: admin
+
+replicas: 1
+resources:
+  requests: {cpu: 50m, memory: 128Mi}
+  limits: {cpu: 200m, memory: 256Mi}
+
+persistence:
+  enabled: false  # emptyDir in the minimum profile — dashboards/datasources are provisioned from Git on every restart, so this is not data loss in the way Prometheus/Loki PVC loss would be
+
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    folder: /var/lib/grafana/dashboards
+    provider:
+      foldersFromFilesStructure: false
+
+# Never expose Grafana publicly — access is via `make port-forward-grafana`
+# only, localhost-bound. See docs/DECISIONS.md and root ADR pattern.
+service:
+  type: ClusterIP
+
+grafana.ini:
+  auth:
+    disable_login_form: false
+  security:
+    # Cookie-based session auth is fine for a localhost-only lab; a
+    # production install would front this with SSO/OAuth — see
+    # docs/17-security-and-governance.md.
+    cookie_secure: false
+  analytics:
+    reporting_enabled: false
+    check_for_updates: false

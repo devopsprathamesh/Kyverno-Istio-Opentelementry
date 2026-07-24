@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector-standalone
+  namespace: opentelemetry
+  labels:
+    app.kubernetes.io/part-of: observability-learning-lab
+spec:
+  type: ClusterIP
+  selector: {app: otel-collector-standalone}
+  ports:
+    - {name: otlp-grpc, port: 4317, targetPort: otlp-grpc}
+    - {name: otlp-http, port: 4318, targetPort: otlp-http}
+    - {name: prom-export, port: 8889, targetPort: prom-export}

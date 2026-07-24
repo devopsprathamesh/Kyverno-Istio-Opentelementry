@@ -1,0 +1,24 @@
+# Jaeger's own admin/metrics port (2112 in Jaeger v2's default
+# all-in-one config — confirm against the live pod's exposed ports
+# post-install, see docs/13-jaeger-architecture.md's "needs
+# re-verification" note). Loki's own ServiceMonitor is created by its
+# own Helm chart when install/loki/values-recommended.yaml sets
+# monitoring.serviceMonitor.enabled: true — not duplicated here.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: jaeger
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: observability-learning-lab
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: ["observability"]
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: jaeger
+  endpoints:
+    - port: admin-http
+      interval: 30s
+      path: /metrics

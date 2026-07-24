@@ -1,0 +1,13 @@
+# Fragment only — see ./README.md and labs/lab-18-telemetry-filtering.md.
+#
+# Drops health/readiness-probe spans entirely (pure noise, never useful
+# in Jaeger) using an OTTL boolean condition — same technique as
+# ../agent/configmap.yaml's filter/logs processor, applied here to
+# traces instead of logs.
+processors:
+  filter/drop_health_check_spans:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes["http.route"] == "/healthz"'
+        - 'attributes["http.route"] == "/readyz"'

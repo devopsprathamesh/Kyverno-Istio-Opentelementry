@@ -1,0 +1,33 @@
+# Instrumentation CRD for the Python inventory-service (auto-
+# instrumented — see docs/DECISIONS.md ADR-031). order-service and
+# payment-service are manually instrumented instead (see
+# ../../demo-application/order-service/ and .../payment-service/) and
+# deliberately do NOT reference this resource, so the auto-vs-manual
+# contrast is real and inspectable, not just documented. Applied via
+# the annotation
+# `instrumentation.opentelemetry.io/inject-python: "opentelemetry/python-instrumentation"`
+# on inventory-service's pod template.
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: python-instrumentation
+  namespace: opentelemetry
+  labels:
+    app.kubernetes.io/part-of: observability-learning-lab
+spec:
+  exporter:
+    endpoint: http://otel-collector-gateway.opentelemetry.svc.cluster.local:4317
+  propagators:
+    - tracecontext
+    - baggage
+  sampler:
+    type: parentbased_traceidratio
+    argument: "1.0"
+  resource:
+    addK8sUIDAttributes: true
+  python:
+    env:
+      - name: OTEL_PYTHON_LOG_CORRELATION
+        value: "true"
+      - name: OTEL_LOG_LEVEL
+        value: "info"

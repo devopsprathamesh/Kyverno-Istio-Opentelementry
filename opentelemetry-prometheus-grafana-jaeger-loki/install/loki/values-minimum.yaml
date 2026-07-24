@@ -1,0 +1,57 @@
+# Loki values — minimum profile. Chart: grafana-community/helm-charts "loki"
+# ../../config/versions.env LOKI_HELM_CHART_VERSION.
+#
+# deploymentMode: Monolithic is the CURRENT chart terminology (the old
+# name was SingleBinary; SimpleScalable is deprecated, slated for
+# removal in Loki 4.0 — see docs/VERSIONS.md Phase 5 addendum). Single-
+# tenant lab: auth_enabled false — see docs/17-security-and-governance.md
+# "Multi-tenancy limitations" for what this gives up.
+deploymentMode: Monolithic
+
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  limits_config:
+    retention_period: 24h  # matches config/retention.env LOKI_RETENTION_MINIMUM
+    # Deliberately conservative label cardinality — see
+    # docs/19-cost-optimization.md and docs/06-logs.md "Structured
+    # metadata vs. indexed labels". High-cardinality fields (trace_id,
+    # span_id, pod name, order_id) are carried as OTLP structured
+    # metadata, never as indexed stream labels.
+    max_label_names_per_series: 15
+
+singleBinary:
+  replicas: 1
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+  persistence:
+    enabled: false  # emptyDir in the minimum profile
+
+minio:
+  enabled: false  # filesystem storage, no embedded object store needed at this scale
+
+gateway:
+  enabled: false  # Collector/Grafana talk to Loki's Service directly; no nginx gateway needed for a single-tenant lab
+
+test:
+  enabled: false
+monitoring:
+  serviceMonitor:
+    enabled: false
+  selfMonitoring:
+    enabled: false
+  lokiCanary:
+    enabled: false

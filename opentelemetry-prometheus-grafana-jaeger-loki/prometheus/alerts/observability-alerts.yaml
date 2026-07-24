@@ -1,0 +1,132 @@
+# Alerting rules. Each `annotations.runbook_url` points at this
+# repository's own troubleshooting doc (a local file path reference, not
+# a real hosted URL — see docs/21-troubleshooting.md) and each carries a
+# `validation` annotation describing exactly how to test-fire it, so
+# "does this alert actually work" is answerable, not assumed. See
+# docs/16-production-design.md "Alertmanager HA" for the production
+# alternative to this lab's single-Alertmanager-replica default.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: observability-alerts
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: observability-learning-lab
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: demo-app.alerts
+      rules:
+        - alert: HighApplicationErrorRate
+          expr: job:http_error_ratio:ratio5m > 0.10
+          for: 2m
+          labels: {severity: warning}
+          annotations:
+            summary: "{{ $labels.job }} error rate above 10%"
+            description: "{{ $labels.job }} has returned 5xx for {{ $value | humanizePercentage }} of requests over the last 5m."
+            runbook_url: "docs/21-troubleshooting.md#high-application-error-rate"
+            validation: "make inject-errors ARGS=50, wait 2m, confirm this alert fires in Prometheus/Alertmanager, then make inject-errors ARGS='0 revert' and confirm it resolves."
+
+        - alert: HighP95Latency
+          expr: job:http_request_duration:p95_5m > 1000
+          for: 2m
+          labels: {severity: warning}
+          annotations:
+            summary: "{{ $labels.job }} P95 latency above 1s"
+            description: "{{ $labels.job }}'s P95 request duration has been {{ $value }}ms for at least 2m."
+            runbook_url: "docs/21-troubleshooting.md#high-p95-latency"
+            validation: "make inject-latency ARGS=1500, wait 2m, confirm this alert fires, then revert with make inject-latency ARGS='0 revert'."
+
+        - alert: ServiceUnavailable
+          expr: up{job=~"frontend|order-service|inventory-service|payment-service"} == 0
+          for: 1m
+          labels: {severity: critical}
+          annotations:
+            summary: "{{ $labels.job }} is down"
+            description: "Prometheus has not been able to scrape {{ $labels.job }} for at least 1m."
+            runbook_url: "docs/21-troubleshooting.md#service-unavailable"
+            validation: "kubectl -n otel-demo scale deployment/payment-service --replicas=0, wait 1m, confirm firing, then scale back to 1."
+
+    - name: collector.alerts
+      rules:
+        - alert: CollectorFailedExports
+          expr: rate(otelcol_exporter_send_failed_spans[5m]) > 0 or rate(otelcol_exporter_send_failed_metric_points[5m]) > 0 or rate(otelcol_exporter_send_failed_log_records[5m]) > 0
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: "Collector Gateway has failed exports"
+            description: "otelcol_exporter_send_failed_* is nonzero — a backend (Jaeger/Loki/Prometheus scrape) is rejecting or unreachable."
+            runbook_url: "docs/21-troubleshooting.md#collector-export-timeout--backend-unavailable"
+            validation: "kubectl -n observability scale deployment/jaeger --replicas=0, generate traffic, confirm firing, then scale jaeger back up."
+
+        - alert: CollectorRefusedTelemetry
+          expr: rate(otelcol_receiver_refused_spans[5m]) > 0 or rate(otelcol_receiver_refused_metric_points[5m]) > 0 or rate(otelcol_receiver_refused_log_records[5m]) > 0
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: "Collector is refusing incoming telemetry"
+            description: "otelcol_receiver_refused_* is nonzero — usually memory_limiter rejecting new data under pressure."
+            runbook_url: "docs/21-troubleshooting.md#dropped-telemetry"
+            validation: "labs/lab-16-collector-scaling.md's load-scaling step reliably reproduces this at the minimum profile's memory_limiter settings."
+
+        - alert: CollectorQueueNearlyFull
+          expr: otelcol:queue_utilization:ratio > 0.8
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: "Collector exporter sending_queue is over 80% full"
+            description: "queue utilization {{ $value | humanizePercentage }} — a backend is falling behind or unavailable; data loss is imminent if this continues."
+            runbook_url: "docs/21-troubleshooting.md#sending-queue-full"
+            validation: "labs/lab-17-backpressure-and-retries.md's backend-outage scenario."
+
+        - alert: CollectorHighMemory
+          expr: process_runtime_go_mem_heap_alloc_bytes{job=~".*otel-collector.*"} / (1024*1024) > 350
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: "Collector heap usage above 350MiB"
+            description: "Approaching the memory_limiter limit_mib configured in collector/agent|gateway/configmap.yaml — risk of the memory_limiter starting to refuse data, or an OOMKill if the limit is misconfigured relative to the pod's resources.limits.memory."
+            runbook_url: "docs/21-troubleshooting.md#collector-oomkilled"
+            validation: "labs/lab-16-collector-scaling.md's high-load step."
+
+    - name: backend.alerts
+      rules:
+        - alert: LokiIngestionErrors
+          expr: rate(loki_request_duration_seconds_count{route=~".*loki_api_v1_push.*|.*otlp.*", status_code=~"4..|5.."}[5m]) > 0
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: "Loki is rejecting log-ingestion requests"
+            description: "Non-2xx responses on Loki's push/OTLP ingestion endpoint — check the Collector Gateway's otlphttp/loki exporter logs for the exact rejection reason."
+            runbook_url: "docs/21-troubleshooting.md#loki-otlp-endpoint-incorrect"
+            validation: "Temporarily misconfigure the gateway's otlphttp/loki endpoint (see collector/examples/), generate logs, confirm firing, then revert."
+
+        - alert: JaegerUnavailable
+          expr: up{job="jaeger"} == 0
+          for: 2m
+          labels: {severity: critical}
+          annotations:
+            summary: "Jaeger is not reachable by Prometheus"
+            description: "Jaeger's own /metrics target is down — traces will queue/fail at the Collector Gateway (see CollectorFailedExports)."
+            runbook_url: "docs/21-troubleshooting.md#backend-unavailable"
+            validation: "kubectl -n observability scale deployment/jaeger --replicas=0, wait 2m, confirm firing, scale back up."
+
+        - alert: PrometheusTargetDown
+          expr: up == 0
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: "Scrape target {{ $labels.job }}/{{ $labels.instance }} is down"
+            description: "Prometheus has not successfully scraped this target in at least 5m."
+            runbook_url: "docs/21-troubleshooting.md#prometheus-target-down"
+            validation: "Any of the ServiceUnavailable/JaegerUnavailable validation steps above will also trip this generic alert."
+
+        - alert: PodRestartRateHigh
+          expr: increase(kube_pod_container_status_restarts_total{namespace=~"observability|opentelemetry|otel-demo"}[15m]) > 3
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} restarted more than 3 times in 15m"
+            description: "A crash-looping pod in this module's own namespaces — check `kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }}` and its previous logs."
+            runbook_url: "docs/21-troubleshooting.md#collector-crashloopbackoff"
+            validation: "kubectl -n opentelemetry delete pod -l app=otel-collector-agent --grace-period=0 --force, repeated a few times in a short window, confirm firing."

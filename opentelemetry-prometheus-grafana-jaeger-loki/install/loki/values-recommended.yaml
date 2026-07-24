@@ -1,0 +1,49 @@
+# Loki values — recommended profile (~32GB host RAM). Still Monolithic
+# deployment mode (SimpleScalable/Distributed are real production paths
+# documented but not implemented here — see docs/16-production-design.md
+# "Loki" section), now with persistence and longer retention.
+deploymentMode: Monolithic
+
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  limits_config:
+    retention_period: 72h  # matches config/retention.env LOKI_RETENTION_RECOMMENDED
+    max_label_names_per_series: 15
+
+singleBinary:
+  replicas: 1
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: 1000m, memory: 1Gi}
+  persistence:
+    enabled: true
+    size: "10Gi"  # matches config/retention.env LOKI_PVC_SIZE_RECOMMENDED
+
+minio:
+  enabled: false
+
+gateway:
+  enabled: false
+
+test:
+  enabled: false
+monitoring:
+  serviceMonitor:
+    enabled: true  # recommended profile: let Prometheus scrape Loki's own metrics too
+  selfMonitoring:
+    enabled: false
+  lokiCanary:
+    enabled: false

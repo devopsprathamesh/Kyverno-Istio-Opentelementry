@@ -8,7 +8,7 @@ This repository is written for engineers who are already fluent in Linux, Kubern
 
 > **This project is implemented phase by phase.** Each module is built, validated, and documented independently before the next phase begins. See [`PROJECT-IMPLEMENTATION-PLAN.md`](PROJECT-IMPLEMENTATION-PLAN.md) for the authoritative phase list and current progress, and [`docs/VALIDATION-STATUS.md`](docs/VALIDATION-STATUS.md) for what has actually been built and tested so far.
 >
-> **Current state: Phase 4 in progress (partial).** `auto-setup-default-kube-env/` (base platform), `kyverno/` (independent policy lab), and `istio/` (independent service-mesh lab, sidecar mode, Cilium CNI-chained) are all fully built and statically validated, but none has been run against a live cluster in this repository yet; see [`docs/VALIDATION-STATUS.md`](docs/VALIDATION-STATUS.md) for exactly what that means and the commands to complete it. No observability stack has been installed yet.
+> **Current state: Phase 5 in progress (partial).** `auto-setup-default-kube-env/` (base platform), `kyverno/` (independent policy lab), `istio/` (independent service-mesh lab, sidecar mode, Cilium CNI-chained), and `opentelemetry-prometheus-grafana-jaeger-loki/` (independent observability lab) are all fully built and statically validated, but none has been run against a live cluster in this repository yet; see [`docs/VALIDATION-STATUS.md`](docs/VALIDATION-STATUS.md) for exactly what that means and the commands to complete it. The final all-tools integrated lab has not been started.
 
 ## High-level architecture
 
@@ -32,7 +32,7 @@ Full diagrams and reasoning are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md
 | [`auto-setup-default-kube-env/`](auto-setup-default-kube-env/) | Reusable 3-node Kubernetes platform: VirtualBox/Vagrant VMs, containerd, kubeadm, Cilium CNI + Hubble, Helm, local StorageClass, kubeconfig export, validation and rebuild automation | Built, statically validated — live-cluster run pending |
 | [`kyverno/`](kyverno/) | Independent Kyverno policy-engine lab: validate/mutate/generate/cleanup/verifyImages policies, policy exceptions, policy reports, audit vs. enforce | Built, statically validated — live-cluster run pending |
 | [`istio/`](istio/) | Independent Istio service-mesh lab (sidecar mode, Istio CNI plugin chained with Cilium): traffic management, mTLS, authorization, JWT, egress control, resilience patterns | Built, statically validated — live-cluster run pending |
-| [`opentelemetry-prometheus-grafana-jaeger-loki/`](opentelemetry-prometheus-grafana-jaeger-loki/) | Independent observability lab: OpenTelemetry SDK/Collector/Operator, metrics → Prometheus, traces → Jaeger, logs → Loki via the `filelog` receiver, all visualized in Grafana | Planned |
+| [`opentelemetry-prometheus-grafana-jaeger-loki/`](opentelemetry-prometheus-grafana-jaeger-loki/) | Independent observability lab: OpenTelemetry Collector (Agent+Gateway)/Operator, metrics → Prometheus, traces → Jaeger, logs → Loki via the `filelog` receiver, all visualized in Grafana, against a custom two-language demo app | Built, statically validated — live-cluster run pending |
 | [`all-tools-integrated-lab/`](all-tools-integrated-lab/) | Final integrated lab combining Cilium, Kyverno, Istio, and the full observability stack against instrumented demo services and production-style failure scenarios | Planned |
 
 ## Recommended learning order

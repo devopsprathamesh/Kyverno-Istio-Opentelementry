@@ -1,0 +1,48 @@
+# Recording rules — precompute expensive/frequently-queried expressions
+# into new series, cheaper to query repeatedly (e.g. from a Grafana
+# dashboard refreshing every 10s) than recomputing the raw expression
+# each time. See docs/11-prometheus-architecture.md and
+# docs/18-performance-and-capacity.md.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: observability-recording-rules
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: observability-learning-lab
+    # kube-prometheus-stack's Prometheus is configured with
+    # ruleSelectorNilUsesHelmValues: false (install/prometheus/values-
+    # *.yaml), so it discovers every PrometheusRule in the cluster —
+    # this label is documentation of intent, not a selector requirement.
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: demo-app.rules
+      interval: 30s
+      rules:
+        - record: job:http_requests:rate5m
+          expr: sum(rate(http_server_duration_milliseconds_count{job=~"frontend|order-service|inventory-service|payment-service"}[5m])) by (job)
+        - record: job:http_errors:rate5m
+          expr: sum(rate(http_server_duration_milliseconds_count{job=~"frontend|order-service|inventory-service|payment-service", http_status_code=~"5.."}[5m])) by (job)
+        - record: job:http_error_ratio:ratio5m
+          expr: job:http_errors:rate5m / job:http_requests:rate5m
+        - record: job:http_request_duration:p95_5m
+          expr: histogram_quantile(0.95, sum(rate(http_server_duration_milliseconds_bucket{job=~"frontend|order-service|inventory-service|payment-service"}[5m])) by (job, le))
+        - record: job:http_request_duration:p99_5m
+          expr: histogram_quantile(0.99, sum(rate(http_server_duration_milliseconds_bucket{job=~"frontend|order-service|inventory-service|payment-service"}[5m])) by (job, le))
+        - record: orders:rate5m
+          expr: sum(rate(orders_total[5m]))
+        - record: orders_failed:rate5m
+          expr: sum(rate(orders_failed_total[5m]))
+
+    - name: collector.rules
+      interval: 30s
+      rules:
+        - record: otelcol:receiver_accepted:rate5m
+          expr: sum(rate(otelcol_receiver_accepted_spans[5m])) + sum(rate(otelcol_receiver_accepted_metric_points[5m])) + sum(rate(otelcol_receiver_accepted_log_records[5m]))
+        - record: otelcol:exporter_sent:rate5m
+          expr: sum(rate(otelcol_exporter_sent_spans[5m])) + sum(rate(otelcol_exporter_sent_metric_points[5m])) + sum(rate(otelcol_exporter_sent_log_records[5m]))
+        - record: otelcol:exporter_send_failed:rate5m
+          expr: sum(rate(otelcol_exporter_send_failed_spans[5m])) + sum(rate(otelcol_exporter_send_failed_metric_points[5m])) + sum(rate(otelcol_exporter_send_failed_log_records[5m]))
+        - record: otelcol:queue_utilization:ratio
+          expr: otelcol_exporter_queue_size / otelcol_exporter_queue_capacity

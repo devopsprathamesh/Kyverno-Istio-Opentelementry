@@ -1,0 +1,18 @@
+# Same least-privilege shape as ../agent/clusterrole.yaml — the Gateway
+# runs its own k8sattributes pass as a defense-in-depth double-check
+# (the Agent already enriches, but telemetry can theoretically arrive
+# at the Gateway from a source that bypassed the Agent), so it needs
+# the same read-only pod/namespace/replicaset access.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-collector-gateway
+  labels:
+    app.kubernetes.io/part-of: observability-learning-lab
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]

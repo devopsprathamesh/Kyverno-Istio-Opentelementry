@@ -1,0 +1,101 @@
+# Collector Agent — one pod per node. `__IMAGE__` is substituted by
+# scripts/install-collector.sh from config/versions.env
+# (OTEL_COLLECTOR_CONTRIB_IMAGE:OTEL_COLLECTOR_CONTRIB_VERSION).
+#
+# Runs as a non-root UID, relying on this cluster's standard containerd/
+# kubelet log-file permissions (world-readable /var/log/pods/*/*/*.log —
+# confirmed default, no custom log-dir override anywhere in
+# ../../../auto-setup-default-kube-env/'s provisioning). If you see
+# "permission denied" reading log files, see docs/21-troubleshooting.md
+# "Filelog permission denied" — a real, documented failure mode of this
+# exact choice, not hidden.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: otel-collector-agent
+  namespace: opentelemetry
+  labels:
+    app: otel-collector-agent
+    app.kubernetes.io/part-of: observability-learning-lab
+spec:
+  selector:
+    matchLabels:
+      app: otel-collector-agent
+  template:
+    metadata:
+      labels:
+        app: otel-collector-agent
+    spec:
+      serviceAccountName: otel-collector-agent
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: otel-collector-agent
+          image: __IMAGE__
+          imagePullPolicy: IfNotPresent
+          args: ["--config=/etc/otelcol/config.yaml"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: HOST_IP
+              valueFrom: {fieldRef: {fieldPath: status.hostIP}}
+            - name: K8S_NODE_NAME
+              valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+              hostPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              hostPort: 4318
+              protocol: TCP
+            - name: health
+              containerPort: 13133
+            - name: metrics
+              containerPort: 8888
+          resources:
+            requests: {cpu: 100m, memory: 200Mi}
+            limits: {cpu: 500m, memory: 400Mi}
+          readinessProbe:
+            httpGet: {path: /, port: health}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /, port: health}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+              readOnly: true
+            - name: varlogpods
+              mountPath: /var/log/pods
+              readOnly: true
+            - name: checkpoint
+              mountPath: /var/lib/otelcol/file_storage
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-agent-config
+        - name: varlogpods
+          hostPath:
+            path: /var/log/pods
+            type: Directory
+        - name: checkpoint
+          hostPath:
+            path: /var/lib/otelcol-agent-checkpoint
+            type: DirectoryOrCreate
+        - name: tmp
+          emptyDir: {}
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule

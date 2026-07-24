@@ -1,0 +1,10 @@
+# Prometheus, Alertmanager, Grafana, Jaeger, Loki. See
+# ../../docs/15-kubernetes-observability.md "Namespace strategy".
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    app.kubernetes.io/part-of: observability-learning-lab
+    environment: lab
+    owner: platform-team

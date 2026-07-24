@@ -1,0 +1,27 @@
+# PodMonitor (not ServiceMonitor) is used here specifically because the
+# Collector Agent DaemonSet has no Service in front of it (each pod is
+# scraped directly, node by node) — the Gateway has a Service too but a
+# single PodMonitor covering the "otel-collector" label prefix scrapes
+# both agent and gateway pods uniformly. See
+# docs/11-prometheus-architecture.md "ServiceMonitor vs. PodMonitor".
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: otel-collector
+  namespace: opentelemetry
+  labels:
+    app.kubernetes.io/part-of: observability-learning-lab
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: ["opentelemetry"]
+  selector:
+    matchExpressions:
+      - {key: app, operator: In, values: [otel-collector-agent, otel-collector-gateway]}
+  podMetricsEndpoints:
+    - port: metrics       # Collector's own internal metrics (otelcol_receiver_*, otelcol_exporter_*, etc.) — container port name "metrics" = 8888
+      interval: 30s
+      path: /metrics
+    - port: prom-export    # Gateway-only: the demo app's own business/HTTP metrics (orders_total, http_server_duration_*, etc.), exposed via the `prometheus` exporter — port name "prom-export" = 8889. Agent pods have no port with this name, so this endpoint is simply skipped for them.
+      interval: 30s
+      path: /metrics

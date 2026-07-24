@@ -1,0 +1,13 @@
+# Demo microservices + load generator. Auto-instrumentation is applied
+# via per-Deployment pod annotations referencing the Instrumentation
+# resource in the opentelemetry namespace (see
+# ../../operator/instrumentation/), not a namespace-wide label — see
+# docs/09-collector-internals.md "Auto-instrumentation injection scope".
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: otel-demo
+  labels:
+    app.kubernetes.io/part-of: observability-learning-lab
+    environment: lab
+    owner: platform-team

@@ -1,0 +1,40 @@
+# Convenience only — for testing application logic locally with
+# `docker compose up` BEFORE deploying to Kubernetes. NOT used by any
+# install/deploy script in this module (Kubernetes manifests under
+# ../kubernetes/ are the actual deployment path — see
+# scripts/build-demo-images.sh and scripts/deploy-demo.sh). No OTLP
+# collector is wired up here; traces/metrics/logs will simply fail to
+# export (harmlessly) unless you also run a local Collector — this is
+# for exercising the HTTP call chain and business logic only.
+services:
+  inventory-service:
+    build: ../inventory-service
+    ports: ["8001:8000"]
+    environment:
+      LOW_STOCK_PROBABILITY: "0.05"
+
+  payment-service:
+    build: ../payment-service
+    ports: ["8002:8000"]
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4317"
+      LATENCY_MS: "0"
+      FAILURE_PERCENT: "0"
+
+  order-service:
+    build: ../order-service
+    ports: ["8003:8000"]
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4317"
+      INVENTORY_SERVICE_URL: "http://inventory-service:8000"
+      PAYMENT_SERVICE_URL: "http://payment-service:8000"
+      TIMEOUT_MS: "3000"
+      RETRY_ATTEMPTS: "2"
+    depends_on: [inventory-service, payment-service]
+
+  frontend:
+    build: ../frontend
+    ports: ["3000:3000"]
+    environment:
+      ORDER_SERVICE_URL: "http://order-service:8000"
+    depends_on: [order-service]

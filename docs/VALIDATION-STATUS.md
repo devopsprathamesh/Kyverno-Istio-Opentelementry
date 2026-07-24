@@ -8,7 +8,7 @@ This document is the source of truth for what has actually been built and valida
 | Phase 2 — Base VirtualBox and Vagrant Kubernetes environment | **Partial** — automation built and statically validated; live-cluster runtime validation not performed | File existence, `bash -n` + ShellCheck (if available), `ruby -c`/`vagrant validate`, YAML template structural checks, `make help` review, markdown-link check, git-safety checks; host tool presence (`VBoxManage`/`vagrant --version`) confirmed directly | Static suite: pass (see below). Runtime (VM boot, kubeadm, Cilium, storage, network tests): **not run**, by explicit user choice this session | No live cluster exists yet. See Phase 2 detail below for the exact commands to complete runtime validation, and known/deferred risks. |
 | Phase 3 — Independent Kyverno lab | **Partial** — automation and documentation built and statically validated; live-cluster runtime validation not performed | File existence, `bash -n` + ShellCheck, YAML structural validation, `helm lint` (best-effort, network-dependent), Kyverno CLI `kyverno test` offline policy tests, policy-quality checks (API versions, duplicate names, descriptions, wildcards, image-tag hygiene), markdown-link check, `make help`, git-safety checks | Static suite: see Phase 3 detail below for exact pass/fail counts. Runtime (install, functional probes, all `tests/*-policy-tests.sh`): **not run** — no live cluster existed during this phase | No live cluster exists yet. See Phase 3 detail below for exact commands to complete runtime validation. |
 | Phase 4 — Independent Istio lab | **Partial** — automation and documentation built and statically validated; live-cluster runtime validation not performed | File existence, `bash -n` + ShellCheck, YAML structural validation, `istioctl analyze --use-kube=false` (real tool execution, checksum-verified `istioctl` 1.30.3 installed this phase), manifest-quality checks (API versions, duplicate names, image-tag hygiene), markdown-link check, `make help`, git-safety checks | Static suite: **pass** (8/8 mandatory checks, 1 non-fatal WARN — see Phase 4 detail below). Runtime (`make verify-cluster`, `make install`, `make validate-installation`, `make deploy-demo`, `make test-runtime`, all 10 `tests/*-test.sh` runtime scripts): **not run** — no live cluster existed during this phase | No live cluster exists yet. See Phase 4 detail below for exact commands to complete runtime validation. |
-| Phase 5 — Independent observability lab | Not started | — | — | — |
+| Phase 5 — Independent observability lab | **Partial** — automation and documentation built and statically validated; live-cluster runtime validation not performed | File existence, `bash -n` + ShellCheck (35 scripts), YAML structural validation (45 files), JSON structural validation (6 Grafana dashboards + `package.json`), Collector-config sanity (no deprecated components, correct Loki OTLP endpoint), Python syntax compilation (6 files), Dockerfile review (5 images: pinned base, non-root, no `:latest`), manifest quality checks, markdown-link check, `make help`, git-safety checks | Static suite: **pass** (10/10 sections, 0 failures — see Phase 5 detail below). Runtime (`make verify-cluster`, `make install-all`, `make build-demo-images`, `make deploy-demo`, `make test-runtime`, all 11 `tests/*-test.sh` runtime scripts): **not run** — no live cluster, and no Docker/Podman/vagrant, existed on this host during this phase | No live cluster exists yet, and this host additionally lacks Docker/Podman and Node.js. See Phase 5 detail below for exact commands to complete runtime validation. |
 | Phase 6 — All-tools integrated lab | Not started | — | — | — |
 | Phase 7 — Repository-wide validation and documentation review | Not started | — | — | — |
 
@@ -369,4 +369,75 @@ make test-runtime
 
 ```text
 Phase 5: Independent observability lab (OpenTelemetry, Prometheus, Grafana, Jaeger, Loki)
+```
+
+## Phase 5 detail
+
+**Repository state at start:** working tree clean; `opentelemetry-prometheus-grafana-jaeger-loki/` contained only one empty placeholder `README.md`. No live cluster existed (no `kubectl`/`helm`/`istioctl`/`docker`/`podman`/`node` installed on this host) — matching this phase's own "no live cluster available" execution branch, the same situation as Phases 2–4, plus this phase's additional dependency on a container builder that also wasn't present.
+
+**Files created:** `opentelemetry-prometheus-grafana-jaeger-loki/config/{versions,namespaces,lab-settings,endpoints,retention}.env`; `scripts/lib/{common,logging,kubernetes,observability}.sh` + 17 orchestration scripts; `install/` (namespaces, cert-manager README, Helm values for Prometheus/Grafana/Jaeger/Loki × minimum/recommended, Operator values, Collector-chart README, Grafana datasources); `collector/` (agent DaemonSet + gateway Deployment raw manifests with RBAC, standalone teaching Collector, 3 example pipeline fragments); `operator/` (2 `Instrumentation` CRDs, 1 documented example `OpenTelemetryCollector` CRD); `demo-application/` (5 services' full source across Node.js + Python, Dockerfiles, Kubernetes manifests, docker-compose for local testing, 2 offline unit test files); `prometheus/`, `grafana/`, `jaeger/`, `loki/` (rules, alerts, ServiceMonitor/PodMonitor, 5 dashboards, correlation config, query references); `Makefile` (54 targets); `tests/` (`static-validation.sh` + 11 runtime test scripts + `expected-results.md`); `docs/` (22 concept documents, 24 Mermaid diagrams); `labs/` (22 lab documents, `lab-00`–`lab-21`); `combined-observability-lab/` (architecture, installation, dashboards, incident-workflow scenario, validation, cleanup); `README.md`, `.env.example`, `examples/` (3 files).
+
+**Files modified:** `PROJECT-IMPLEMENTATION-PLAN.md` (Phase 5 checkboxes), `docs/VERSIONS.md` (Phase 5 addendum, resolving the previously-flagged OTel Operator version uncertainty), `docs/DEPENDENCIES.md` (§4 Operator cert-manager note reconciled, §7 Jaeger Operator deprecation confirmed), `docs/DECISIONS.md` (+ADR-025 through ADR-033), root `README.md` (status line + module table row).
+
+### Static validation
+
+| Check | Result |
+| --- | --- |
+| `bash -n`, 35 scripts | Pass — 35/35 |
+| ShellCheck (severity: warning+, SC1091 excluded — same rationale as Phases 2–4), 35 scripts | Pass — 35/35, zero findings this pass (no bugs needed fixing, unlike Phase 4's two real findings) |
+| YAML structural validation, 45 files | Pass — 45/45 |
+| JSON structural validation, 6 files (5 Grafana dashboards + `frontend/package.json`) | Pass — 6/6 |
+| Collector configuration sanity (deprecated `loki` exporter, malformed `/otlp` endpoint) | Pass — none found in `collector/{agent,gateway,standalone}/configmap.yaml` |
+| Python syntax compilation, 6 files (`demo-application/`, `examples/otlp-client/`) | Pass — 6/6 |
+| Node.js syntax check (`server.js`) | **Skipped — `node` not installed on this host.** Substituted with a manual brace/paren/bracket balance check (23/23, 39/39, 0/0) plus careful manual review; not a substitute for a real `node --check`, recorded honestly rather than claimed as equivalent. |
+| Dockerfile review, 5 images | Pass — 5/5: pinned base image, non-root `USER`, no `:latest` |
+| Manifest quality checks (`:latest` tags), 45 files | Pass — none found |
+| `helm lint` | **Skipped, documented** — `helm` not installed on this host, matching Phases 2–4's pattern |
+| Markdown link check (module only) | Pass — 47/47 relative links across 73 files |
+| Markdown link check (repo-wide) | Pass — 240/240 relative links across 168 files, run after this phase's root-doc edits to confirm nothing broke |
+| `make help` | Pass — lists 54 targets |
+| Secret-like file scan | Pass — none found |
+| Nested `.git` scan | Pass — none found |
+| Placeholder token scan | Pass — none found |
+| `git diff --check` | Pass — clean, exit 0 |
+| `kyverno/`, `istio/`, `all-tools-integrated-lab/`, `auto-setup-default-kube-env/` unmodified | Pass — `git status --short` scoped to each returns empty |
+
+**No real bugs were found and fixed via execution this phase** — unlike Phase 2's SIGPIPE-under-pipefail discovery, Phase 3's `kyverno-test.yaml` schema mistakes, and Phase 4's two findings (a ShellCheck warning and a second SIGPIPE-under-pipefail variant), this phase's `static-validation.sh` passed cleanly on its first complete run, with zero ShellCheck/YAML/JSON/Dockerfile findings. This is recorded as an observation, not a claim of superior correctness — this phase's runtime paths (Collector pipeline behavior, demo-app instrumentation correctness, Grafana correlation wiring) remain genuinely unverified against a live cluster, exactly like every prior phase's static-only pass.
+
+### Runtime validation
+
+**Not performed — no live cluster, and no Docker/Podman/vagrant, existed on this host during this phase**, matching this phase's own "no live cluster available" execution policy, with an additional, phase-specific gap: `make build-demo-images`/`make deploy-demo` require a container builder this host doesn't have, meaning even a hypothetical available cluster could not have received the demo application without a different host actually running the build step. Not run: `make verify-cluster`, `make install-all`, `make validate-installation`, `make build-demo-images`, `make deploy-demo`, `make generate-load`, `make validate`, `make test-runtime`, and all 11 `tests/*-test.sh` runtime scripts.
+
+**To complete runtime validation** (requires a host with `kubectl`/`helm` AND Docker-or-Podman AND `vagrant` ssh access to the base platform):
+
+```bash
+cd auto-setup-default-kube-env
+make prerequisites && make setup LAB_PROFILE=recommended && make validate
+export KUBECONFIG="$(pwd)/.generated/kubeconfig"
+
+cd ../opentelemetry-prometheus-grafana-jaeger-loki
+make prerequisites
+make verify-cluster
+make install-all LAB_PROFILE=recommended
+make validate-installation
+make build-demo-images
+make deploy-demo
+make generate-load
+make validate
+make test-runtime
+```
+
+### Items not testable in this phase
+
+- Everything under "Runtime validation" above.
+- `helm lint` against the actual pinned charts (documented skip, not a silent omission — see the static-validation table above).
+- A real `node --check` on `demo-application/frontend/server.js` (Node.js not installed on this host — substituted with a manual balance check and review, not equivalent).
+- The demo application's actual build (`make build-demo-images`) and therefore every downstream lab from `lab-08-auto-instrumentation.md` onward — the Operator's webhook injection, the auto-vs-manual instrumentation contrast, and every trace/metric/log this application would produce are all unverified beyond static source/Dockerfile review.
+- Statistical/timing-sensitive runtime tests (tail-sampling policy accuracy, cardinality-explosion counts, backend-outage queue behavior) by nature require live traffic and cannot be meaningfully approximated statically.
+- The Grafana/Loki Helm chart repository migration note (`docs/VERSIONS.md` Phase 5 addendum) — confirmed via research, not confirmed by an actual `helm repo add`/`helm install` against the live `grafana-community.github.io/helm-charts` index in this session.
+
+### Next phase
+
+```text
+Phase 6: All-tools integrated Kubernetes lab
 ```

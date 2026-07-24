@@ -1,0 +1,32 @@
+# Grafana values — recommended profile (~32GB host RAM).
+adminUser: admin
+
+replicas: 1
+resources:
+  requests: {cpu: 100m, memory: 256Mi}
+  limits: {cpu: 500m, memory: 512Mi}
+
+persistence:
+  enabled: true
+  size: "2Gi"  # matches config/retention.env GRAFANA_PVC_SIZE_RECOMMENDED
+
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    folder: /var/lib/grafana/dashboards
+    provider:
+      foldersFromFilesStructure: false
+
+service:
+  type: ClusterIP
+
+grafana.ini:
+  auth:
+    disable_login_form: false
+  security:
+    cookie_secure: false
+  analytics:
+    reporting_enabled: false
+    check_for_updates: false

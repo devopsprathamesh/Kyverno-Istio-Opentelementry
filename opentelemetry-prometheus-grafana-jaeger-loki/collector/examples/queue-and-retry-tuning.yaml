@@ -1,0 +1,21 @@
+# Fragment only — not a complete config. See ./README.md and
+# labs/lab-17-backpressure-and-retries.md.
+#
+# A larger, explicitly-sized sending queue plus a longer retry budget —
+# what you'd tune UP to before assuming "backend outage = data loss" is
+# unavoidable. sending_queue.queue_size is measured in BATCHES, not
+# individual telemetry items — see docs/09-collector-internals.md
+# "Queue capacity and sizing".
+exporters:
+  otlp/jaeger:
+    endpoint: jaeger-collector.observability.svc.cluster.local:4317
+    tls: {insecure: true}
+    sending_queue:
+      enabled: true
+      num_consumers: 10
+      queue_size: 5000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 2s
+      max_interval: 60s
+      max_elapsed_time: 900s

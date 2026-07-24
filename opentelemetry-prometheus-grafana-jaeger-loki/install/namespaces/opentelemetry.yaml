@@ -1,0 +1,10 @@
+# OpenTelemetry Operator, Collector agent (DaemonSet) + gateway
+# (Deployment), Instrumentation resources.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: opentelemetry
+  labels:
+    app.kubernetes.io/part-of: observability-learning-lab
+    environment: lab
+    owner: platform-team

@@ -1,0 +1,21 @@
+{
+  "name": "otel-demo-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Frontend service — AUTO-instrumented via the OpenTelemetry Operator (see ../../operator/instrumentation/nodejs-instrumentation.yaml). Deliberately no @opentelemetry/* dependencies here — see ../../docs/DECISIONS.md ADR-031.",
+  "type": "commonjs",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "4.21.2",
+    "pino": "9.6.0",
+    "pino-http": "10.4.0",
+    "@opentelemetry/api": "1.9.0"
+  },
+  "_note_on_opentelemetry_api": "This is the lightweight, no-op-by-default API package only (interfaces for reading the active span, e.g. trace.getActiveSpan()) — used solely so server.js can inject trace_id/span_id into JSON logs. It is NOT an SDK, exporter, or instrumentation library, and configures nothing: the actual tracer/exporter setup comes entirely from the Operator's auto-instrumentation injection (../../operator/instrumentation/nodejs-instrumentation.yaml), which registers itself as the global provider this API package then reads from. See docs/DECISIONS.md ADR-031."
+}
